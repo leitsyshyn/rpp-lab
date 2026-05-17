@@ -68,6 +68,9 @@ cmake --build build
 
 # MPI
 mpirun -np 4 ./build/wf-benchmark --mode mpi input.txt
+
+# MPI to a file
+mpirun -np 4 ./build/wf-benchmark --mode mpi input.txt --output output.txt
 ```
 
 ## Test
@@ -92,7 +95,7 @@ include/wf/      – public contracts, primitive declarations, runner APIs
 src/core/        – shared core library (compiled, not header-only)
 src/sequential/  – sequential reference implementation
 src/openmp/      – OpenMP shared-memory implementation
-src/mpi/         – MPI implementation (currently a stub)
+src/mpi/         – MPI distributed-memory implementation
 tests/           – Google Test unit tests
 scripts/         – benchmark / validation (future)
 benchmarks/      – output directory (git ignored)
@@ -100,7 +103,7 @@ cmake/           – custom CMake modules (future)
 ```
 
 All three modes are compiled into a single `wf-benchmark` executable and
-selected at runtime with `--mode <name>`. OpenMP and MPI stubs are only
+selected at runtime with `--mode <name>`. OpenMP and MPI code paths are only
 compiled when the respective dependency is detected.
 
 **Shared interface layer** (`include/wf/`, target `wf_core`):
@@ -128,13 +131,13 @@ Frequency-map serialization contract:
 - one record is emitted per frequency entry as `word count\n`
 - each record stores the normalized word and its count
 - the format is designed for tokenizer-produced ASCII-normalized words
-- future MPI implementations will use it for byte-buffer exchange
+- MPI uses it for byte-buffer exchange
 - malformed serialized input is rejected during deserialization
 
 ## Status
 
-This repository implements the shared primitive layer, the sequential
-reference runner, and an OpenMP runner.
+This repository implements the shared primitive layer plus sequential, OpenMP,
+and MPI runners.
 
 The OpenMP mode reads the input once, splits the text into byte ranges across
 workers, performs boundary-safe shared-memory chunk scanning, counts into
@@ -142,11 +145,14 @@ thread-local hash maps, merges them with a tree reduction, and canonicalizes
 the final result into the deterministic frequency map used by the sequential
 reference.
 
-### Not implemented yet
+The MPI mode uses parallel MPI file I/O, boundary-safe local tokenization,
+stable-hash partitioned aggregation, `MPI_Alltoallv` bucket exchange, owner-side
+merging, and a final rank-0 gather for deterministic output. The sequential
+mode remains the correctness reference.
 
-- MPI file I/O
-- MPI boundary handling and aggregation
-- Distributed aggregation
+### Known limitation
+
+- final output is centralized on rank 0
 
 Future agents must not reintroduce AppleClang-specific OpenMP workaround
 logic. Always use Homebrew LLVM for a clean OpenMP experience.

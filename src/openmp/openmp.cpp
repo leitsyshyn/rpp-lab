@@ -18,17 +18,14 @@
 #include <wf/primitives.h>
 #include <wf/runners.h>
 
+#include <wf/internal/chunk_ranges.h>
+
 namespace wf {
 
 namespace {
 
 using clock_type = std::chrono::steady_clock;
 using local_frequency_map = std::unordered_map<word_type, count_type>;
-
-struct byte_range {
-    std::size_t begin{0};
-    std::size_t end{0};
-};
 
 [[nodiscard]] double elapsed_seconds(clock_type::time_point start, clock_type::time_point end) {
     return std::chrono::duration<double>(end - start).count();
@@ -71,61 +68,6 @@ struct byte_range {
     return actual_worker_count;
 }
 
-[[nodiscard]] std::vector<byte_range> build_byte_ranges(std::size_t text_size,
-                                                        std::size_t worker_count) {
-    std::vector<byte_range> ranges(worker_count);
-    const std::size_t base_chunk_size = worker_count == 0 ? 0 : text_size / worker_count;
-    const std::size_t remainder = worker_count == 0 ? 0 : text_size % worker_count;
-
-    for (std::size_t worker_index = 0; worker_index < worker_count; ++worker_index) {
-        const std::size_t extra_prefix = std::min(worker_index, remainder);
-        const std::size_t begin = worker_index * base_chunk_size + extra_prefix;
-        const std::size_t end = begin + base_chunk_size + (worker_index < remainder ? 1U : 0U);
-        ranges[worker_index] = {begin, end};
-    }
-
-    return ranges;
-}
-
-[[nodiscard]] bool is_word_byte(std::string_view text, std::size_t index) noexcept {
-    return detail::is_ascii_alphanumeric(static_cast<unsigned char>(text[index]));
-}
-
-void tokenize_range_into(std::string_view text, byte_range range, local_frequency_map& frequencies,
-                         count_type& total_word_count) {
-    std::size_t position = range.begin;
-    if (position >= text.size()) {
-        return;
-    }
-
-    if (position > 0 && is_word_byte(text, position - 1)) {
-        while (position < text.size() && is_word_byte(text, position)) {
-            ++position;
-        }
-    }
-
-    while (position < text.size()) {
-        while (position < text.size() && !is_word_byte(text, position)) {
-            ++position;
-        }
-
-        if (position >= text.size() || position >= range.end) {
-            break;
-        }
-
-        word_type word;
-        while (position < text.size() && is_word_byte(text, position)) {
-            word.push_back(detail::ascii_to_lower(static_cast<unsigned char>(text[position])));
-            ++position;
-        }
-
-        const auto [it, inserted] = frequencies.try_emplace(std::move(word), 0);
-        it->second = detail::checked_add(it->second, 1);
-        total_word_count = detail::checked_add(total_word_count, 1);
-        static_cast<void>(inserted);
-    }
-}
-
 void merge_local_frequency_maps(local_frequency_map& destination, local_frequency_map& source) {
     destination.reserve(destination.size() + source.size());
     for (const auto& [word, count] : source) {
@@ -158,14 +100,18 @@ run_summary run_openmp(const run_config& config) {
     report.method = execution_method::openmp;
 
     const auto total_start = clock_type::now();
+    const std::string input_path_text = config.input_path.string();
 
     const auto read_start = clock_type::now();
     const std::string text = read_text_file(config.input_path);
     const auto read_end = clock_type::now();
 
+    const file_size_type input_size_bytes =
+        detail::checked_input_size_bytes(text.size(), input_path_text);
+
     const int actual_worker_count = determine_actual_worker_count(config);
-    const auto ranges =
-        build_byte_ranges(text.size(), static_cast<std::size_t>(actual_worker_count));
+    const auto ranges = internal::build_even_byte_ranges(
+        input_size_bytes, static_cast<std::size_t>(actual_worker_count));
 
     const auto tokenize_count_start = clock_type::now();
     std::vector<local_frequency_map> local_frequencies(
@@ -175,8 +121,19 @@ run_summary run_openmp(const run_config& config) {
 #pragma omp parallel num_threads(actual_worker_count)
     {
         const std::size_t worker_index = static_cast<std::size_t>(omp_get_thread_num());
-        tokenize_range_into(text, ranges[worker_index], local_frequencies[worker_index],
-                            local_word_totals[worker_index]);
+        const internal::byte_range range = ranges[worker_index];
+        const bool starts_inside_word =
+            range.begin > 0 && detail::is_ascii_alphanumeric(static_cast<unsigned char>(
+                                   text[static_cast<std::size_t>(range.begin - 1)]));
+
+        internal::for_each_owned_word(text, range, starts_inside_word, [&](word_type word) {
+            const auto [it, inserted] =
+                local_frequencies[worker_index].try_emplace(std::move(word), 0);
+            it->second = detail::checked_add(it->second, 1);
+            local_word_totals[worker_index] =
+                detail::checked_add(local_word_totals[worker_index], 1);
+            static_cast<void>(inserted);
+        });
     }
 
     count_type total_word_count = 0;
@@ -219,15 +176,13 @@ run_summary run_openmp(const run_config& config) {
     }
 
     const auto total_end = clock_type::now();
-    const std::string input_path_text = config.input_path.string();
 
     run_summary summary;
     summary.result.frequencies = std::move(frequencies);
     summary.result.total_word_count = total_word_count;
     summary.result.unique_word_count =
         detail::checked_word_count_size(summary.result.frequencies->size(), input_path_text);
-    summary.result.input_size_bytes =
-        detail::checked_input_size_bytes(text.size(), input_path_text);
+    summary.result.input_size_bytes = input_size_bytes;
 
     if (config.benchmark_enabled) {
         report.worker_count = static_cast<std::uint64_t>(actual_worker_count);

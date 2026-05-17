@@ -26,5 +26,31 @@ if(OpenMP_FOUND)
     target_link_libraries(wf_tests PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
+if(MPI_FOUND)
+    add_test(
+        NAME wf_mpi_compare_suite
+        COMMAND
+            ${CMAKE_COMMAND}
+            -DWF_TEST_EXECUTABLE=$<TARGET_FILE:wf-benchmark>
+            -DWF_TEST_MPIEXEC=${MPIEXEC_EXECUTABLE}
+            -DWF_TEST_MPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+            -DWF_TEST_CASE=compare_suite
+            -DWF_TEST_TEMP_DIR=${CMAKE_CURRENT_BINARY_DIR}/mpi_compare_suite
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mpi_integration.cmake
+    )
+
+    add_test(
+        NAME wf_mpi_benchmark_suite
+        COMMAND
+            ${CMAKE_COMMAND}
+            -DWF_TEST_EXECUTABLE=$<TARGET_FILE:wf-benchmark>
+            -DWF_TEST_MPIEXEC=${MPIEXEC_EXECUTABLE}
+            -DWF_TEST_MPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}
+            -DWF_TEST_CASE=benchmark_suite
+            -DWF_TEST_TEMP_DIR=${CMAKE_CURRENT_BINARY_DIR}/mpi_benchmark_suite
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/mpi_integration.cmake
+    )
+endif()
+
 include(GoogleTest)
 gtest_discover_tests(wf_tests)
