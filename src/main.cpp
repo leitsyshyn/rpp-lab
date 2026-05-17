@@ -1,17 +1,11 @@
 #include <cstdio>
 #include <cstring>
+#include <exception>
+#include <stdexcept>
 
+#include <wf/contracts.h>
+#include <wf/runners.h>
 #include <wf/version.h>
-
-#ifdef WF_HAS_OPENMP
-int run_openmp();
-#endif
-
-#ifdef WF_HAS_MPI
-int run_mpi(int argc, char** argv);
-#endif
-
-int run_sequential();
 
 int main(int argc, char** argv) {
     const char* mode = "sequential";
@@ -22,22 +16,39 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (std::strcmp(mode, "sequential") == 0) {
-        return run_sequential();
+    const auto selected_method = wf::parse_execution_method(mode);
+    if (!selected_method.has_value()) {
+        std::fprintf(stderr, "Error: unknown mode '%s'\n", mode);
+        return 1;
     }
 
+    wf::run_config config;
+    config.selected_method = *selected_method;
+
+    try {
+        switch (*selected_method) {
+        case wf::execution_method::sequential:
+            static_cast<void>(wf::run_sequential(config));
+            return 0;
+        case wf::execution_method::openmp:
 #ifdef WF_HAS_OPENMP
-    if (std::strcmp(mode, "openmp") == 0) {
-        return run_openmp();
-    }
+            static_cast<void>(wf::run_openmp(config));
+            return 0;
+#else
+            throw std::runtime_error("OpenMP support is not available in this build");
 #endif
-
+        case wf::execution_method::mpi:
 #ifdef WF_HAS_MPI
-    if (std::strcmp(mode, "mpi") == 0) {
-        return run_mpi(argc, argv);
-    }
+            static_cast<void>(wf::run_mpi(config));
+            return 0;
+#else
+            throw std::runtime_error("MPI support is not available in this build");
 #endif
+        }
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "Error: %s\n", error.what());
+        return 1;
+    }
 
-    std::fprintf(stderr, "Error: unknown or unavailable mode '%s'\n", mode);
     return 1;
 }

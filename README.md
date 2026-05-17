@@ -82,7 +82,7 @@ Requires `clang-format` on `PATH` or reachable via `CMAKE_PREFIX_PATH`.
 ## Project structure
 
 ```
-include/wf/      – public interfaces / version header
+include/wf/      – public contracts, primitive declarations, runner APIs
 src/core/        – shared core library (compiled, not header-only)
 src/sequential/  – sequential implementation (future)
 src/openmp/      – OpenMP implementation (future)
@@ -97,15 +97,24 @@ All three modes are compiled into a single `wf-benchmark` executable and
 selected at runtime with `--mode <name>`. OpenMP and MPI stubs are only
 compiled when the respective dependency is detected.
 
-**Shared core library** (`src/core/`, target `wf_core`):
-Future shared contracts and primitive declarations belong here.
-Sequential, OpenMP, and MPI implementations should depend on this
-target instead of duplicating semantics.
+**Shared interface layer** (`include/wf/`, target `wf_core`):
+The public contracts in `wf/contracts.h`, primitive declarations in
+`wf/primitives.h`, and runner declarations in `wf/runners.h` define the shared
+semantic surface for the whole project.
+
+Method-specific implementations must not redefine what a word is, how words are
+normalised, how counts are merged, how outputs are formatted, or how benchmark
+reports are represented. Those semantics belong to the shared primitive layer.
+
+The sequential implementation will become the correctness reference.
+OpenMP and MPI implementations must use the same shared contracts so their
+outputs and benchmark reports remain comparable.
 
 ## Status
 
-This repository contains **only tooling bootstrap**. No word-frequency
-algorithms have been implemented.
+This repository currently contains only the shared public interface layer and
+build tooling. No real word-frequency algorithms or benchmark harness have been
+implemented yet.
 
 ### Not implemented yet
 

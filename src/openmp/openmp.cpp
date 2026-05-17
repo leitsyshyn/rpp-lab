@@ -1,8 +1,13 @@
 #ifdef WF_HAS_OPENMP
-#include <cstdio>
+#include <stdexcept>
 
-int run_openmp() {
-    std::puts("mode=openmp: not implemented yet");
-    return 0;
+#include <wf/runners.h>
+
+namespace wf {
+
+run_summary run_openmp(const run_config&) {
+    throw std::runtime_error("OpenMP runner is not implemented yet");
 }
+
+} // namespace wf
 #endif

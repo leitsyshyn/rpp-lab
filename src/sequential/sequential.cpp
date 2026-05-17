@@ -1,6 +1,11 @@
-#include <cstdio>
+#include <stdexcept>
 
-int run_sequential() {
-    std::puts("mode=sequential: not implemented yet");
-    return 0;
+#include <wf/runners.h>
+
+namespace wf {
+
+run_summary run_sequential(const run_config&) {
+    throw std::runtime_error("sequential runner is not implemented yet");
 }
+
+} // namespace wf
