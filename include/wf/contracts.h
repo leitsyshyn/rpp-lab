@@ -52,20 +52,47 @@ parse_execution_method(std::string_view value) noexcept {
 struct run_config {
     execution_method selected_method{execution_method::sequential};
     std::filesystem::path input_path;
-    std::optional<std::filesystem::path> output_path;
+
+    // Controls how the output frequency table is delivered.
+    //
+    //   output_enabled == false  => compute only; output_path is ignored
+    //   output_enabled == true   => write to output_path if set, else stdout
     bool output_enabled{false};
+    std::optional<std::filesystem::path> output_path;
+
     bool benchmark_enabled{false};
+
+    // Requested logical worker / thread / process count where the selected
+    // method can honour it.  OpenMP implementations may use this to control
+    // thread count.  Sequential implementations may ignore it or treat it as
+    // 1.  MPI process count is typically set by the launcher (mpirun -np);
+    // this field is then informational or for validation / reporting.
     std::optional<std::uint64_t> requested_worker_count;
 };
 
 struct word_frequency_result {
-    // MPI runners may only populate frequencies on rank 0.
+    // The materialised final frequency map when the current execution context
+    // owns / collects the final result.
+    //
+    //   has_value  =>  this context holds the full map
+    //   nullopt    =>  this context did not materialise the full map
+    //
+    // Sequential and OpenMP implementations should normally return populated
+    // frequencies.  Distributed implementations (MPI) may return nullopt on
+    // non-collecting ranks or contexts.
     std::optional<frequency_map> frequencies;
     count_type total_word_count{0};
     count_type unique_word_count{0};
     std::optional<file_size_type> input_size_bytes;
 };
 
+// Describes where a benchmark phase is meaningful.
+//
+//   local        – measured on the current execution context only
+//   root_only    – measured only on the collecting / root context
+//   distributed  – measured across multiple workers / processes;
+//                  the reported duration must be the maximum across
+//                  participating ranks
 enum class phase_scope {
     local,
     root_only,
