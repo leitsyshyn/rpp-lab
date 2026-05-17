@@ -83,6 +83,7 @@ Requires `clang-format` on `PATH` or reachable via `CMAKE_PREFIX_PATH`.
 
 ```
 include/wf/      – public interfaces / version header
+src/core/        – shared core library (compiled, not header-only)
 src/sequential/  – sequential implementation (future)
 src/openmp/      – OpenMP implementation (future)
 src/mpi/         – MPI implementation (future)
@@ -95,6 +96,11 @@ cmake/           – custom CMake modules (future)
 All three modes are compiled into a single `wf-benchmark` executable and
 selected at runtime with `--mode <name>`. OpenMP and MPI stubs are only
 compiled when the respective dependency is detected.
+
+**Shared core library** (`src/core/`, target `wf_core`):
+Future shared contracts and primitive declarations belong here.
+Sequential, OpenMP, and MPI implementations should depend on this
+target instead of duplicating semantics.
 
 ## Status
 

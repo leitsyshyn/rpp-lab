@@ -1,7 +1,9 @@
-# Shared interface library — no executable logic
-add_library(wf_core INTERFACE)
-target_include_directories(wf_core INTERFACE ${CMAKE_SOURCE_DIR}/include)
-target_compile_features(wf_core INTERFACE cxx_std_20)
+# Shared core library — compiled, not header-only
+add_library(wf_core STATIC
+    core/version.cpp
+)
+target_include_directories(wf_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_compile_features(wf_core PUBLIC cxx_std_20)
 
 # Single benchmark executable
 add_executable(wf-benchmark
