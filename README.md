@@ -54,14 +54,20 @@ cmake --build build
 ## Run
 
 ```bash
-# Sequential (default)
-./build/wf-benchmark
+# Sequential to stdout
+./build/wf-benchmark input.txt
+
+# Sequential to a file
+./build/wf-benchmark input.txt --output output.txt
+
+# Sequential benchmark without writing frequencies
+./build/wf-benchmark input.txt --benchmark --no-output
 
 # OpenMP
-./build/wf-benchmark --mode openmp
+./build/wf-benchmark --mode openmp input.txt
 
 # MPI
-mpirun -np 4 ./build/wf-benchmark --mode mpi
+mpirun -np 4 ./build/wf-benchmark --mode mpi input.txt
 ```
 
 ## Test
@@ -84,7 +90,7 @@ Requires `clang-format` on `PATH` or reachable via `CMAKE_PREFIX_PATH`.
 ```
 include/wf/      – public contracts, primitive declarations, runner APIs
 src/core/        – shared core library (compiled, not header-only)
-src/sequential/  – sequential implementation (future)
+src/sequential/  – sequential reference implementation
 src/openmp/      – OpenMP implementation (future)
 src/mpi/         – MPI implementation (future)
 tests/           – Google Test unit tests
@@ -110,21 +116,32 @@ The sequential implementation will become the correctness reference.
 OpenMP and MPI implementations must use the same shared contracts so their
 outputs and benchmark reports remain comparable.
 
+Canonical word semantics:
+
+- a word is a maximal contiguous sequence of ASCII letters or digits
+- normalization lowercases ASCII letters
+- any non-alphanumeric byte is a delimiter
+
+Frequency-map serialization contract:
+
+- deterministic `std::map` order is preserved in the serialized byte stream
+- one record is emitted per frequency entry as `word count\n`
+- each record stores the normalized word and its count
+- the format is designed for tokenizer-produced ASCII-normalized words
+- future MPI implementations will use it for byte-buffer exchange
+- malformed serialized input is rejected during deserialization
+
 ## Status
 
-This repository currently contains only the shared public interface layer and
-build tooling. No real word-frequency algorithms or benchmark harness have been
-implemented yet.
+This repository now implements the shared primitive layer and the sequential
+reference runner. The sequential method defines the canonical output semantics
+for future OpenMP and MPI implementations.
 
 ### Not implemented yet
 
-- Word extraction / tokenisation
-- Frequency counting
-- Serialisation
 - MPI file I/O
 - OpenMP parallel loops
-- Benchmark harness
-- Correctness comparison
+- Distributed aggregation
 
 Future agents must not reintroduce AppleClang-specific OpenMP workaround
 logic. Always use Homebrew LLVM for a clean OpenMP experience.

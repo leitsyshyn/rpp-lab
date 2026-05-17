@@ -8,7 +8,12 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(wf_tests test_smoke.cpp)
+add_executable(wf_tests
+    test_smoke.cpp
+    test_primitives.cpp
+    test_sequential.cpp
+    ${CMAKE_SOURCE_DIR}/src/sequential/sequential.cpp
+)
 target_link_libraries(wf_tests PRIVATE wf_core GTest::gtest_main)
 target_compile_features(wf_tests PRIVATE cxx_std_20)
 
