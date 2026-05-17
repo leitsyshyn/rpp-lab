@@ -1,0 +1,41 @@
+# Build
+build/
+out/
+
+# Compiled artefacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.ccls-cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Benchmark output (generated at runtime)
+benchmarks/*.csv
+benchmarks/*.json
+benchmarks/*.txt
+
+# Generated data
+data/generated/
+
+# Logs
+*.log
+
+# Python virtual env (scripts)
+.venv/
+__pycache__/
+*.pyc
