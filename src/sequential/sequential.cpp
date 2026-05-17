@@ -1,11 +1,9 @@
 #include <chrono>
 #include <cstdint>
 #include <iostream>
-#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include <wf/primitives.h>
@@ -13,28 +11,6 @@
 #include <wf/runners.h>
 
 namespace wf {
-
-namespace detail {
-
-count_type checked_word_count_size(std::size_t word_count, std::string_view input_path) {
-    if (word_count > static_cast<std::size_t>(std::numeric_limits<count_type>::max())) {
-        throw std::overflow_error("word count exceeds supported range for input: " +
-                                  std::string(input_path));
-    }
-
-    return static_cast<count_type>(word_count);
-}
-
-file_size_type checked_input_size_bytes(std::size_t input_size_bytes, std::string_view input_path) {
-    if (input_size_bytes > static_cast<std::size_t>(std::numeric_limits<file_size_type>::max())) {
-        throw std::overflow_error("input size exceeds supported range for input: " +
-                                  std::string(input_path));
-    }
-
-    return static_cast<file_size_type>(input_size_bytes);
-}
-
-} // namespace detail
 
 namespace {
 

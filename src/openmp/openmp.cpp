@@ -1,12 +1,258 @@
 #ifdef WF_HAS_OPENMP
-#include <stdexcept>
+#include <omp.h>
 
+#include <algorithm>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <iostream>
+#include <limits>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include <wf/primitives.h>
 #include <wf/runners.h>
 
 namespace wf {
 
-run_summary run_openmp(const run_config&) {
-    throw std::runtime_error("OpenMP runner is not implemented yet");
+namespace {
+
+using clock_type = std::chrono::steady_clock;
+using local_frequency_map = std::unordered_map<word_type, count_type>;
+
+struct byte_range {
+    std::size_t begin{0};
+    std::size_t end{0};
+};
+
+[[nodiscard]] double elapsed_seconds(clock_type::time_point start, clock_type::time_point end) {
+    return std::chrono::duration<double>(end - start).count();
+}
+
+[[nodiscard]] int checked_requested_thread_count(std::uint64_t requested_worker_count) {
+    if (requested_worker_count == 0) {
+        throw std::runtime_error("OpenMP runner requires a positive worker count");
+    }
+    if (requested_worker_count > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+        throw std::runtime_error("requested worker count exceeds OpenMP supported range");
+    }
+
+    return static_cast<int>(requested_worker_count);
+}
+
+[[nodiscard]] int determine_actual_worker_count(const run_config& config) {
+    int actual_worker_count = 0;
+
+    if (config.requested_worker_count.has_value()) {
+        const int requested_worker_count =
+            checked_requested_thread_count(*config.requested_worker_count);
+#pragma omp parallel num_threads(requested_worker_count)
+        {
+#pragma omp single
+            actual_worker_count = omp_get_num_threads();
+        }
+    } else {
+#pragma omp parallel
+        {
+#pragma omp single
+            actual_worker_count = omp_get_num_threads();
+        }
+    }
+
+    if (actual_worker_count <= 0) {
+        throw std::runtime_error("OpenMP reported an invalid worker count");
+    }
+
+    return actual_worker_count;
+}
+
+[[nodiscard]] std::vector<byte_range> build_byte_ranges(std::size_t text_size,
+                                                        std::size_t worker_count) {
+    std::vector<byte_range> ranges(worker_count);
+    const std::size_t base_chunk_size = worker_count == 0 ? 0 : text_size / worker_count;
+    const std::size_t remainder = worker_count == 0 ? 0 : text_size % worker_count;
+
+    for (std::size_t worker_index = 0; worker_index < worker_count; ++worker_index) {
+        const std::size_t extra_prefix = std::min(worker_index, remainder);
+        const std::size_t begin = worker_index * base_chunk_size + extra_prefix;
+        const std::size_t end = begin + base_chunk_size + (worker_index < remainder ? 1U : 0U);
+        ranges[worker_index] = {begin, end};
+    }
+
+    return ranges;
+}
+
+[[nodiscard]] bool is_word_byte(std::string_view text, std::size_t index) noexcept {
+    return detail::is_ascii_alphanumeric(static_cast<unsigned char>(text[index]));
+}
+
+void tokenize_range_into(std::string_view text, byte_range range, local_frequency_map& frequencies,
+                         count_type& total_word_count) {
+    std::size_t position = range.begin;
+    if (position >= text.size()) {
+        return;
+    }
+
+    if (position > 0 && is_word_byte(text, position - 1)) {
+        while (position < text.size() && is_word_byte(text, position)) {
+            ++position;
+        }
+    }
+
+    while (position < text.size()) {
+        while (position < text.size() && !is_word_byte(text, position)) {
+            ++position;
+        }
+
+        if (position >= text.size() || position >= range.end) {
+            break;
+        }
+
+        word_type word;
+        while (position < text.size() && is_word_byte(text, position)) {
+            word.push_back(detail::ascii_to_lower(static_cast<unsigned char>(text[position])));
+            ++position;
+        }
+
+        const auto [it, inserted] = frequencies.try_emplace(std::move(word), 0);
+        it->second = detail::checked_add(it->second, 1);
+        total_word_count = detail::checked_add(total_word_count, 1);
+        static_cast<void>(inserted);
+    }
+}
+
+void merge_local_frequency_maps(local_frequency_map& destination, local_frequency_map& source) {
+    destination.reserve(destination.size() + source.size());
+    for (const auto& [word, count] : source) {
+        const auto [it, inserted] = destination.try_emplace(word, 0);
+        it->second = detail::checked_add(it->second, count);
+        static_cast<void>(inserted);
+    }
+
+    source.clear();
+}
+
+[[nodiscard]] frequency_map
+canonicalize_frequency_map(const local_frequency_map& local_frequencies) {
+    frequency_map frequencies;
+    for (const auto& [word, count] : local_frequencies) {
+        frequencies.emplace(word, count);
+    }
+
+    return frequencies;
+}
+
+} // namespace
+
+run_summary run_openmp(const run_config& config) {
+    if (config.input_path.empty()) {
+        throw std::runtime_error("OpenMP runner requires an input path");
+    }
+
+    benchmark_report report;
+    report.method = execution_method::openmp;
+
+    const auto total_start = clock_type::now();
+
+    const auto read_start = clock_type::now();
+    const std::string text = read_text_file(config.input_path);
+    const auto read_end = clock_type::now();
+
+    const int actual_worker_count = determine_actual_worker_count(config);
+    const auto ranges =
+        build_byte_ranges(text.size(), static_cast<std::size_t>(actual_worker_count));
+
+    const auto tokenize_count_start = clock_type::now();
+    std::vector<local_frequency_map> local_frequencies(
+        static_cast<std::size_t>(actual_worker_count));
+    std::vector<count_type> local_word_totals(static_cast<std::size_t>(actual_worker_count), 0);
+
+#pragma omp parallel num_threads(actual_worker_count)
+    {
+        const std::size_t worker_index = static_cast<std::size_t>(omp_get_thread_num());
+        tokenize_range_into(text, ranges[worker_index], local_frequencies[worker_index],
+                            local_word_totals[worker_index]);
+    }
+
+    count_type total_word_count = 0;
+    for (const count_type local_word_total : local_word_totals) {
+        total_word_count = detail::checked_add(total_word_count, local_word_total);
+    }
+    const auto tokenize_count_end = clock_type::now();
+
+    const auto merge_start = clock_type::now();
+    for (std::size_t stride = 1; stride < local_frequencies.size(); stride *= 2) {
+        const std::size_t pair_count = (local_frequencies.size() + (2 * stride) - 1) / (2 * stride);
+
+#pragma omp parallel for num_threads(actual_worker_count) schedule(static)
+        for (std::ptrdiff_t pair_index = 0; pair_index < static_cast<std::ptrdiff_t>(pair_count);
+             ++pair_index) {
+            const std::size_t destination_index = static_cast<std::size_t>(pair_index) * 2 * stride;
+            const std::size_t source_index = destination_index + stride;
+            if (source_index < local_frequencies.size()) {
+                merge_local_frequency_maps(local_frequencies[destination_index],
+                                           local_frequencies[source_index]);
+            }
+        }
+    }
+    const auto merge_end = clock_type::now();
+
+    const auto canonicalize_start = clock_type::now();
+    frequency_map frequencies = canonicalize_frequency_map(local_frequencies.front());
+    const auto canonicalize_end = clock_type::now();
+
+    std::optional<double> write_duration_seconds;
+    if (config.output_enabled) {
+        const auto write_start = clock_type::now();
+        if (config.output_path.has_value()) {
+            write_frequency_map(*config.output_path, frequencies);
+        } else {
+            write_frequency_map(std::cout, frequencies);
+        }
+        const auto write_end = clock_type::now();
+        write_duration_seconds = elapsed_seconds(write_start, write_end);
+    }
+
+    const auto total_end = clock_type::now();
+    const std::string input_path_text = config.input_path.string();
+
+    run_summary summary;
+    summary.result.frequencies = std::move(frequencies);
+    summary.result.total_word_count = total_word_count;
+    summary.result.unique_word_count =
+        detail::checked_word_count_size(summary.result.frequencies->size(), input_path_text);
+    summary.result.input_size_bytes =
+        detail::checked_input_size_bytes(text.size(), input_path_text);
+
+    if (config.benchmark_enabled) {
+        report.worker_count = static_cast<std::uint64_t>(actual_worker_count);
+        report.input_size_bytes = summary.result.input_size_bytes;
+        report.word_count = summary.result.total_word_count;
+        report.unique_word_count = summary.result.unique_word_count;
+        report.total_seconds = elapsed_seconds(total_start, total_end);
+        report.phases.push_back(
+            {"read", elapsed_seconds(read_start, read_end), phase_scope::local});
+        report.phases.push_back({"parallel_tokenize_count",
+                                 elapsed_seconds(tokenize_count_start, tokenize_count_end),
+                                 phase_scope::local});
+        report.phases.push_back(
+            {"tree_merge", elapsed_seconds(merge_start, merge_end), phase_scope::local});
+        report.phases.push_back({"canonicalize",
+                                 elapsed_seconds(canonicalize_start, canonicalize_end),
+                                 phase_scope::local});
+        if (write_duration_seconds.has_value()) {
+            report.phases.push_back({"write", *write_duration_seconds, phase_scope::local});
+        }
+        report.phases.push_back({"total", report.total_seconds, phase_scope::local});
+        summary.benchmark = std::move(report);
+    }
+
+    return summary;
 }
 
 } // namespace wf

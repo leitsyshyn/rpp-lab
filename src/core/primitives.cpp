@@ -39,19 +39,30 @@ std::streamsize checked_buffer_size_to_read_size(std::size_t buffer_size,
     return static_cast<std::streamsize>(buffer_size);
 }
 
-} // namespace detail
+count_type checked_word_count_size(std::size_t word_count, std::string_view input_path) {
+    if (word_count > static_cast<std::size_t>(std::numeric_limits<count_type>::max())) {
+        throw std::overflow_error("word count exceeds supported range for input: " +
+                                  std::string(input_path));
+    }
 
-namespace {
+    return static_cast<count_type>(word_count);
+}
 
-constexpr std::uint64_t k_fnv_offset_basis = 14695981039346656037ULL;
-constexpr std::uint64_t k_fnv_prime = 1099511628211ULL;
+file_size_type checked_input_size_bytes(std::size_t input_size_bytes, std::string_view input_path) {
+    if (input_size_bytes > static_cast<std::size_t>(std::numeric_limits<file_size_type>::max())) {
+        throw std::overflow_error("input size exceeds supported range for input: " +
+                                  std::string(input_path));
+    }
 
-[[nodiscard]] bool is_ascii_alphanumeric(unsigned char value) noexcept {
+    return static_cast<file_size_type>(input_size_bytes);
+}
+
+bool is_ascii_alphanumeric(unsigned char value) noexcept {
     return (value >= '0' && value <= '9') || (value >= 'A' && value <= 'Z') ||
            (value >= 'a' && value <= 'z');
 }
 
-[[nodiscard]] char ascii_to_lower(unsigned char value) noexcept {
+char ascii_to_lower(unsigned char value) noexcept {
     if (value >= 'A' && value <= 'Z') {
         return static_cast<char>(value - 'A' + 'a');
     }
@@ -59,13 +70,20 @@ constexpr std::uint64_t k_fnv_prime = 1099511628211ULL;
     return static_cast<char>(value);
 }
 
-[[nodiscard]] count_type checked_add(count_type lhs, count_type rhs) {
+count_type checked_add(count_type lhs, count_type rhs) {
     if (rhs > std::numeric_limits<count_type>::max() - lhs) {
         throw std::overflow_error("word frequency count overflow");
     }
 
     return lhs + rhs;
 }
+
+} // namespace detail
+
+namespace {
+
+constexpr std::uint64_t k_fnv_offset_basis = 14695981039346656037ULL;
+constexpr std::uint64_t k_fnv_prime = 1099511628211ULL;
 
 [[nodiscard]] const char* phase_scope_to_string(phase_scope scope) noexcept {
     switch (scope) {
@@ -86,7 +104,7 @@ void validate_serialized_word(std::string_view word) {
     }
 
     for (const unsigned char value : word) {
-        if (!is_ascii_alphanumeric(value)) {
+        if (!detail::is_ascii_alphanumeric(value)) {
             throw std::runtime_error(
                 "failed to deserialize frequency map: word contains non-alphanumeric characters");
         }
@@ -130,8 +148,8 @@ std::vector<word_type> extract_words(std::string_view text) {
     word_type current_word;
 
     for (const unsigned char value : text) {
-        if (is_ascii_alphanumeric(value)) {
-            current_word.push_back(ascii_to_lower(value));
+        if (detail::is_ascii_alphanumeric(value)) {
+            current_word.push_back(detail::ascii_to_lower(value));
             continue;
         }
 
@@ -164,7 +182,7 @@ frequency_map count_word_range(const std::vector<word_type>& words, std::size_t 
     frequency_map frequencies;
     for (std::size_t index = begin_index; index < end_index; ++index) {
         const auto [it, inserted] = frequencies.try_emplace(words[index], 0);
-        it->second = checked_add(it->second, 1);
+        it->second = detail::checked_add(it->second, 1);
         static_cast<void>(inserted);
     }
 
@@ -174,7 +192,7 @@ frequency_map count_word_range(const std::vector<word_type>& words, std::size_t 
 void merge_frequency_maps(frequency_map& destination, const frequency_map& source) {
     for (const auto& [word, count] : source) {
         const auto [it, inserted] = destination.try_emplace(word, 0);
-        it->second = checked_add(it->second, count);
+        it->second = detail::checked_add(it->second, count);
         static_cast<void>(inserted);
     }
 }

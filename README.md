@@ -63,8 +63,8 @@ cmake --build build
 # Sequential benchmark without writing frequencies
 ./build/wf-benchmark input.txt --benchmark --no-output
 
-# OpenMP
-./build/wf-benchmark --mode openmp input.txt
+# OpenMP with 4 workers
+./build/wf-benchmark --mode openmp --workers 4 input.txt
 
 # MPI
 mpirun -np 4 ./build/wf-benchmark --mode mpi input.txt
@@ -91,8 +91,8 @@ Requires `clang-format` on `PATH` or reachable via `CMAKE_PREFIX_PATH`.
 include/wf/      – public contracts, primitive declarations, runner APIs
 src/core/        – shared core library (compiled, not header-only)
 src/sequential/  – sequential reference implementation
-src/openmp/      – OpenMP implementation (future)
-src/mpi/         – MPI implementation (future)
+src/openmp/      – OpenMP shared-memory implementation
+src/mpi/         – MPI implementation (currently a stub)
 tests/           – Google Test unit tests
 scripts/         – benchmark / validation (future)
 benchmarks/      – output directory (git ignored)
@@ -112,7 +112,7 @@ Method-specific implementations must not redefine what a word is, how words are
 normalised, how counts are merged, how outputs are formatted, or how benchmark
 reports are represented. Those semantics belong to the shared primitive layer.
 
-The sequential implementation will become the correctness reference.
+The sequential implementation is the correctness reference.
 OpenMP and MPI implementations must use the same shared contracts so their
 outputs and benchmark reports remain comparable.
 
@@ -133,14 +133,19 @@ Frequency-map serialization contract:
 
 ## Status
 
-This repository now implements the shared primitive layer and the sequential
-reference runner. The sequential method defines the canonical output semantics
-for future OpenMP and MPI implementations.
+This repository implements the shared primitive layer, the sequential
+reference runner, and an OpenMP runner.
+
+The OpenMP mode reads the input once, splits the text into byte ranges across
+workers, performs boundary-safe shared-memory chunk scanning, counts into
+thread-local hash maps, merges them with a tree reduction, and canonicalizes
+the final result into the deterministic frequency map used by the sequential
+reference.
 
 ### Not implemented yet
 
 - MPI file I/O
-- OpenMP parallel loops
+- MPI boundary handling and aggregation
 - Distributed aggregation
 
 Future agents must not reintroduce AppleClang-specific OpenMP workaround

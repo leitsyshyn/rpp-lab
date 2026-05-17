@@ -17,5 +17,14 @@ add_executable(wf_tests
 target_link_libraries(wf_tests PRIVATE wf_core GTest::gtest_main)
 target_compile_features(wf_tests PRIVATE cxx_std_20)
 
+if(OpenMP_FOUND)
+    target_sources(wf_tests PRIVATE
+        test_openmp.cpp
+        ${CMAKE_SOURCE_DIR}/src/openmp/openmp.cpp
+    )
+    target_compile_definitions(wf_tests PRIVATE WF_HAS_OPENMP)
+    target_link_libraries(wf_tests PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
 include(GoogleTest)
 gtest_discover_tests(wf_tests)
