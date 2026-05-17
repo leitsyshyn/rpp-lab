@@ -4,26 +4,51 @@ Benchmarking word-frequency counting across sequential, OpenMP, and MPI implemen
 
 ## Prerequisites
 
-| Tool      | Version        | Install (macOS)                        |
-|-----------|----------------|----------------------------------------|
-| CMake     | >= 3.20        | `brew install cmake`                   |
-| C++       | C++20          | Xcode CLI Tools (`xcode-select --install`) |
-| Ninja     | (optional)     | `brew install ninja`                   |
-| OpenMP    | (optional)     | `brew install libomp`                  |
-| MPI       | (optional)     | `brew install open-mpi`                |
-| clang-format | (optional) | `brew install clang-format`            |
+```bash
+brew install cmake ninja llvm libomp open-mpi clang-format
+```
 
-## Build
+| Package       | Purpose                     |
+|---------------|-----------------------------|
+| `cmake`       | Build system (>= 3.20)      |
+| `ninja`       | Fast build tool (optional)  |
+| `llvm`        | Compiler toolchain (clang++, clang-format, LLD) |
+| `libomp`      | OpenMP runtime              |
+| `open-mpi`    | MPI implementation          |
+| `clang-format`| Code formatter              |
+
+## Why Homebrew LLVM?
+
+AppleClang does not ship with native `-fopenmp` support. Using it for OpenMP
+requires the `-Xpreprocessor` workaround plus manual libomp header/library
+paths. Homebrew LLVM provides a standard compiler with clean `-fopenmp`
+support, keeping the CMake setup simple and portable.
+
+If you configure with AppleClang and OpenMP is not found, CMake will print a
+clear message telling you to reconfigure with Homebrew LLVM.
+
+## Configure
+
+**Canonical macOS command:**
 
 ```bash
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+cmake -B build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER="$(brew --prefix llvm)/bin/clang" \
+  -DCMAKE_CXX_COMPILER="$(brew --prefix llvm)/bin/clang++" \
+  -DCMAKE_PREFIX_PATH="$(brew --prefix llvm);$(brew --prefix libomp);$(brew --prefix open-mpi)"
 ```
 
 To disable optional features:
 
 ```bash
 cmake -B build -DWF_BUILD_OPENMP=OFF -DWF_BUILD_MPI=OFF -DWF_BUILD_TESTS=OFF
+```
+
+## Build
+
+```bash
+cmake --build build
 ```
 
 ## Run
@@ -42,7 +67,7 @@ mpirun -np 4 ./build/wf-benchmark --mode mpi
 ## Test
 
 ```bash
-cmake --build build && ctest --test-dir build --output-on-failure
+ctest --test-dir build --output-on-failure
 ```
 
 ## Format
@@ -52,7 +77,7 @@ cmake --build build -t format       # apply
 cmake --build build -t check-format # dry-run
 ```
 
-Requires `clang-format` on `PATH`.
+Requires `clang-format` on `PATH` or reachable via `CMAKE_PREFIX_PATH`.
 
 ## Project structure
 
@@ -86,12 +111,5 @@ algorithms have been implemented.
 - Benchmark harness
 - Correctness comparison
 
-## macOS notes
-
-- **OpenMP**: Apple Clang does not support `-fopenmp`. CMake 3.23+ handles
-  the `-Xpreprocessor -fopenmp` flag automatically when `libomp` is
-  installed via Homebrew. If CMake fails to detect OpenMP, verify that
-  `brew --prefix libomp` exists.
-- **MPI**: Open MPI from Homebrew is detected automatically by
-  `find_package(MPI)`. The wrapper compilers (`mpic++`, etc.) are not
-  needed for CMake builds.
+Future agents must not reintroduce AppleClang-specific OpenMP workaround
+logic. Always use Homebrew LLVM for a clean OpenMP experience.

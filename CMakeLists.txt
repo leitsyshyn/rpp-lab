@@ -25,42 +25,20 @@ endif()
 # OpenMP detection
 # ---------------------------------------------------------------------------
 if(WF_BUILD_OPENMP)
-    if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "AppleClang")
-        # AppleClang requires -Xpreprocessor -fopenmp + Homebrew libomp.
-        # CMake's built-in FindOpenMP does not handle this well, so we
-        # detect Homebrew libomp manually and create the target ourselves.
-        find_path(OpenMP_CXX_INCLUDE_DIR
-            NAMES omp.h
-            HINTS
-                /opt/homebrew/opt/libomp/include
-                /usr/local/opt/libomp/include
-        )
-        find_library(OpenMP_CXX_LIBRARY
-            NAMES omp libomp
-            HINTS
-                /opt/homebrew/opt/libomp/lib
-                /usr/local/opt/libomp/lib
-        )
-        if(OpenMP_CXX_INCLUDE_DIR AND OpenMP_CXX_LIBRARY)
-            set(OpenMP_FOUND TRUE)
-            add_library(OpenMP::OpenMP_CXX INTERFACE IMPORTED)
-            set_target_properties(OpenMP::OpenMP_CXX PROPERTIES
-                INTERFACE_COMPILE_OPTIONS "-Xpreprocessor;-fopenmp"
-                INTERFACE_INCLUDE_DIRECTORIES "${OpenMP_CXX_INCLUDE_DIR}"
-                INTERFACE_LINK_LIBRARIES "${OpenMP_CXX_LIBRARY}"
-            )
-            message(STATUS "OpenMP: found  (AppleClang, ${OpenMP_CXX_LIBRARY})")
-        else()
-            message(STATUS "OpenMP: not found — OpenMP stubs will be excluded")
-        endif()
+    find_package(OpenMP QUIET)
+    if(OpenMP_FOUND)
+        message(STATUS "OpenMP: found  (${OpenMP_CXX_VERSION})")
     else()
-        # Standard platforms — use CMake built-in module
-        find_package(OpenMP QUIET)
-        if(OpenMP_FOUND)
-            message(STATUS "OpenMP: found  (${OpenMP_CXX_VERSION})")
-        else()
-            message(STATUS "OpenMP: not found — OpenMP stubs will be excluded")
-        endif()
+        message(STATUS "OpenMP: not found — OpenMP stubs will be excluded")
+        message(STATUS "")
+        message(STATUS "  OpenMP requires a compiler with native -fopenmp support.")
+        message(STATUS "  On macOS, configure with Homebrew LLVM:")
+        message(STATUS "    -DCMAKE_C_COMPILER=\"$(brew --prefix llvm)/bin/clang\"")
+        message(STATUS "    -DCMAKE_CXX_COMPILER=\"$(brew --prefix llvm)/bin/clang++\"")
+        message(STATUS "    -DCMAKE_PREFIX_PATH=\"$(brew --prefix llvm);$(brew --prefix libomp);$(brew --prefix open-mpi)\"")
+        message(STATUS "")
+        message(STATUS "  Alternatively, disable OpenMP: -DWF_BUILD_OPENMP=OFF")
+        message(STATUS "")
     endif()
 else()
     message(STATUS "OpenMP: disabled by WF_BUILD_OPENMP=OFF")
@@ -93,7 +71,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Formatting targets (only when clang-format is available)
 # ---------------------------------------------------------------------------
-find_program(CLANG_FORMAT clang-format)
+find_program(CLANG_FORMAT NAMES clang-format)
 if(CLANG_FORMAT)
     file(GLOB_RECURSE ALL_SOURCES
         *.cpp *.hpp *.h *.cxx *.hxx
