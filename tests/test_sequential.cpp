@@ -37,31 +37,6 @@ void write_text_file(const std::filesystem::path& path, std::string_view content
 
 } // namespace
 
-TEST(SequentialRunnerTest, Sequential2MatchesCurrentSequentialOutput) {
-    const auto input_path = unique_temp_path("wf_sequential_2_input");
-    write_text_file(input_path, "Apple banana apple.\nMPI-2026 mpi\n");
-
-    wf::run_config current_config;
-    current_config.selected_method = wf::execution_method::sequential;
-    current_config.input_path = input_path;
-    current_config.output_enabled = false;
-
-    wf::run_config fused_config = current_config;
-    fused_config.selected_method = wf::execution_method::sequential_2;
-
-    const wf::run_summary current_summary = wf::run_sequential(current_config);
-    const wf::run_summary fused_summary = wf::run_sequential_2(fused_config);
-
-    ASSERT_TRUE(current_summary.result.frequencies.has_value());
-    ASSERT_TRUE(fused_summary.result.frequencies.has_value());
-    EXPECT_EQ(*fused_summary.result.frequencies, *current_summary.result.frequencies);
-    EXPECT_EQ(fused_summary.result.total_word_count, current_summary.result.total_word_count);
-    EXPECT_EQ(fused_summary.result.unique_word_count, current_summary.result.unique_word_count);
-    EXPECT_EQ(fused_summary.result.input_size_bytes, current_summary.result.input_size_bytes);
-
-    std::filesystem::remove(input_path);
-}
-
 TEST(SequentialRunnerTest, ProducesExpectedFrequenciesWithoutOutput) {
     const auto input_path = unique_temp_path("wf_sequential_input");
     write_text_file(input_path, "Apple banana apple.\nMPI-2026 mpi\n");
@@ -124,8 +99,8 @@ TEST(SequentialRunnerTest, BenchmarkModeBuildsExpectedPhases) {
     EXPECT_EQ(summary.benchmark->unique_word_count, 3U);
     ASSERT_EQ(summary.benchmark->phases.size(), 4U);
     EXPECT_EQ(summary.benchmark->phases[0].name, "read");
-    EXPECT_EQ(summary.benchmark->phases[1].name, "tokenize");
-    EXPECT_EQ(summary.benchmark->phases[2].name, "count");
+    EXPECT_EQ(summary.benchmark->phases[1].name, "tokenize_count");
+    EXPECT_EQ(summary.benchmark->phases[2].name, "canonicalize");
     EXPECT_EQ(summary.benchmark->phases[3].name, "total");
 
     std::filesystem::remove(input_path);
@@ -152,35 +127,10 @@ TEST(SequentialRunnerTest, OutputFileModeWritesExpectedContent) {
     EXPECT_EQ(buffer.str(), std::string("apple 1\npear 2\n"));
     ASSERT_TRUE(summary.benchmark.has_value());
     ASSERT_EQ(summary.benchmark->phases.size(), 5U);
+    EXPECT_EQ(summary.benchmark->phases[2].name, "canonicalize");
     EXPECT_EQ(summary.benchmark->phases[3].name, "write");
     EXPECT_EQ(summary.benchmark->phases[4].name, "total");
 
     std::filesystem::remove(input_path);
     std::filesystem::remove(output_path);
-}
-
-TEST(SequentialRunnerTest, Sequential2BenchmarkModeBuildsExpectedPhases) {
-    const auto input_path = unique_temp_path("wf_sequential_2_benchmark_input");
-    write_text_file(input_path, "one two two three\n");
-
-    wf::run_config config;
-    config.selected_method = wf::execution_method::sequential_2;
-    config.input_path = input_path;
-    config.output_enabled = false;
-    config.benchmark_enabled = true;
-    config.requested_worker_count = 8;
-
-    const wf::run_summary summary = wf::run_sequential_2(config);
-
-    ASSERT_TRUE(summary.benchmark.has_value());
-    EXPECT_EQ(summary.benchmark->method, wf::execution_method::sequential_2);
-    EXPECT_EQ(summary.benchmark->worker_count, 1U);
-    EXPECT_EQ(summary.benchmark->word_count, 4U);
-    EXPECT_EQ(summary.benchmark->unique_word_count, 3U);
-    ASSERT_EQ(summary.benchmark->phases.size(), 3U);
-    EXPECT_EQ(summary.benchmark->phases[0].name, "read");
-    EXPECT_EQ(summary.benchmark->phases[1].name, "tokenize_count");
-    EXPECT_EQ(summary.benchmark->phases[2].name, "total");
-
-    std::filesystem::remove(input_path);
 }

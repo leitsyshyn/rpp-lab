@@ -11,7 +11,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -19,13 +18,14 @@
 #include <wf/runners.h>
 
 #include <wf/internal/chunk_ranges.h>
+#include <wf/internal/frequency_maps.h>
 
 namespace wf {
 
 namespace {
 
 using clock_type = std::chrono::steady_clock;
-using local_frequency_map = std::unordered_map<word_type, count_type>;
+using local_frequency_map = internal::local_frequency_map;
 
 [[nodiscard]] double elapsed_seconds(clock_type::time_point start, clock_type::time_point end) {
     return std::chrono::duration<double>(end - start).count();
@@ -77,16 +77,6 @@ void merge_local_frequency_maps(local_frequency_map& destination, local_frequenc
     }
 
     source.clear();
-}
-
-[[nodiscard]] frequency_map
-canonicalize_frequency_map(const local_frequency_map& local_frequencies) {
-    frequency_map frequencies;
-    for (const auto& [word, count] : local_frequencies) {
-        frequencies.emplace(word, count);
-    }
-
-    return frequencies;
 }
 
 } // namespace
@@ -160,7 +150,7 @@ run_summary run_openmp(const run_config& config) {
     const auto merge_end = clock_type::now();
 
     const auto canonicalize_start = clock_type::now();
-    frequency_map frequencies = canonicalize_frequency_map(local_frequencies.front());
+    frequency_map frequencies = internal::canonicalize_frequency_map(local_frequencies.front());
     const auto canonicalize_end = clock_type::now();
 
     std::optional<double> write_duration_seconds;

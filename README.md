@@ -109,7 +109,8 @@ cmake/           – custom CMake modules (future)
 
 All three modes are compiled into a single `wf-benchmark` executable and
 selected at runtime with `--mode <name>`. OpenMP and MPI code paths are only
-compiled when the respective dependency is detected.
+compiled when the respective dependency is detected. There is no separate
+`sequential_2` mode; `sequential` is the canonical scanner-based baseline.
 
 **Shared interface layer** (`include/wf/`, target `wf_core`):
 The public contracts in `wf/contracts.h`, primitive declarations in
@@ -120,9 +121,10 @@ Method-specific implementations must not redefine what a word is, how words are
 normalised, how counts are merged, how outputs are formatted, or how benchmark
 reports are represented. Those semantics belong to the shared primitive layer.
 
-The sequential implementation is the correctness reference.
-OpenMP and MPI implementations must use the same shared contracts so their
-outputs and benchmark reports remain comparable.
+The sequential implementation is the correctness reference and the fair
+single-thread baseline for the OpenMP implementation. OpenMP and MPI
+implementations must use the same shared contracts so their outputs and
+benchmark reports remain comparable.
 
 Canonical word semantics:
 
@@ -144,16 +146,28 @@ Frequency-map serialization contract:
 This repository implements the shared primitive layer plus sequential, OpenMP,
 and MPI runners.
 
+The sequential mode reads the input once, scans the full byte range directly,
+counts into an internal hash map, and canonicalizes into the deterministic
+sorted frequency map used for output.
+
 The OpenMP mode reads the input once, splits the text into byte ranges across
 workers, performs boundary-safe shared-memory chunk scanning, counts into
 thread-local hash maps, merges them with a tree reduction, and canonicalizes
-the final result into the deterministic frequency map used by the sequential
-reference.
+the final result into the same deterministic frequency map as the sequential
+baseline.
 
 The MPI mode uses parallel MPI file I/O, boundary-safe local tokenization,
 stable-hash partitioned aggregation, `MPI_Alltoallv` bucket exchange, owner-side
 merging, and a final rank-0 gather for deterministic output. The sequential
 mode remains the correctness reference.
+
+Sequential benchmark phases are:
+
+- `read`
+- `tokenize_count`
+- `canonicalize`
+- `write` when output is enabled
+- `total`
 
 ### Known limitation
 

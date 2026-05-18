@@ -12,7 +12,6 @@ namespace wf {
 
 enum class execution_method {
     sequential,
-    sequential_2,
     openmp,
     mpi,
 };
@@ -26,8 +25,6 @@ using frequency_map = std::map<word_type, count_type>;
     switch (method) {
     case execution_method::sequential:
         return "sequential";
-    case execution_method::sequential_2:
-        return "sequential_2";
     case execution_method::openmp:
         return "openmp";
     case execution_method::mpi:
@@ -41,9 +38,6 @@ using frequency_map = std::map<word_type, count_type>;
 parse_execution_method(std::string_view value) noexcept {
     if (value == "sequential") {
         return execution_method::sequential;
-    }
-    if (value == "sequential_2") {
-        return execution_method::sequential_2;
     }
     if (value == "openmp") {
         return execution_method::openmp;
