@@ -31,18 +31,23 @@ TEST(SmokeTest, CompilesAndLinks) {
 
 TEST(SmokeTest, ExecutionMethodConversions) {
     EXPECT_EQ(wf::to_string(wf::execution_method::sequential), std::string_view("sequential"));
+    EXPECT_EQ(wf::to_string(wf::execution_method::sequential_2),
+              std::string_view("sequential_2"));
     EXPECT_EQ(wf::to_string(wf::execution_method::openmp), std::string_view("openmp"));
     EXPECT_EQ(wf::to_string(wf::execution_method::mpi), std::string_view("mpi"));
 
     const auto sequential = wf::parse_execution_method("sequential");
+    const auto sequential_2 = wf::parse_execution_method("sequential_2");
     const auto openmp = wf::parse_execution_method("openmp");
     const auto mpi = wf::parse_execution_method("mpi");
     const auto missing = wf::parse_execution_method("missing");
 
     ASSERT_TRUE(sequential.has_value());
+    ASSERT_TRUE(sequential_2.has_value());
     ASSERT_TRUE(openmp.has_value());
     ASSERT_TRUE(mpi.has_value());
     EXPECT_EQ(*sequential, wf::execution_method::sequential);
+    EXPECT_EQ(*sequential_2, wf::execution_method::sequential_2);
     EXPECT_EQ(*openmp, wf::execution_method::openmp);
     EXPECT_EQ(*mpi, wf::execution_method::mpi);
     EXPECT_FALSE(missing.has_value());

@@ -25,9 +25,7 @@ out/
 Thumbs.db
 
 # Benchmark output (generated at runtime)
-benchmarks/*.csv
-benchmarks/*.json
-benchmarks/*.txt
+benchmarks/results/
 
 # Generated data
 data/generated/

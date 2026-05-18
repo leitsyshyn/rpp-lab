@@ -73,6 +73,10 @@ mpirun -np 4 ./build/wf-benchmark --mode mpi input.txt
 mpirun -np 4 ./build/wf-benchmark --mode mpi input.txt --output output.txt
 ```
 
+`--benchmark` writes the benchmark report to `stderr`. For performance runs, use
+`--no-output --benchmark` so frequency serialization does not dominate the
+measurements.
+
 ## Test
 
 ```bash
@@ -97,8 +101,9 @@ src/sequential/  – sequential reference implementation
 src/openmp/      – OpenMP shared-memory implementation
 src/mpi/         – MPI distributed-memory implementation
 tests/           – Google Test unit tests
-scripts/         – benchmark / validation (future)
-benchmarks/      – output directory (git ignored)
+scripts/         – benchmark generation / validation / aggregation helpers
+data/generated/  – generated benchmark inputs (git ignored)
+benchmarks/results/ – raw benchmark CSV/JSON and summaries (git ignored)
 cmake/           – custom CMake modules (future)
 ```
 
@@ -153,6 +158,153 @@ mode remains the correctness reference.
 ### Known limitation
 
 - final output is centralized on rank 0
+
+## Benchmark Workflow
+
+Generated benchmark data is not committed by default.
+
+- Generated inputs go under `data/generated/`
+- Raw benchmark results and summaries go under `benchmarks/results/`
+- Both directories are ignored by Git
+
+### Generate Inputs
+
+Generate a single deterministic file:
+
+```bash
+python3 scripts/generate_benchmark_inputs.py \
+  --profile natural \
+  --size-mb 100 \
+  --output data/generated/natural_100mb_seed12345.txt \
+  --seed 12345
+```
+
+Generate the standard suite:
+
+```bash
+python3 scripts/generate_benchmark_inputs.py --suite standard --output-dir data/generated
+```
+
+Available profiles:
+
+- `natural`: moderate vocabulary, mixed case, punctuation, numeric tokens, newlines
+- `lowcard`: very small vocabulary with heavy repetition
+- `highcard`: many unique deterministic words with light repetition
+- `boundary`: long words and sparse delimiters for chunk-boundary stress
+
+Suite defaults:
+
+- `smoke`: all four profiles at `10 MB`
+- `standard`: all four profiles at `10 MB` and `100 MB`
+- add `--include-500mb` to opt into `500 MB` generation
+
+Each generated directory gets a `manifest.json` file so the runner can recover
+profile, size, and seed metadata.
+
+### Validate Correctness
+
+Compare OpenMP and MPI outputs against the sequential reference:
+
+```bash
+python3 scripts/validate_correctness.py \
+  --binary ./build/wf-benchmark \
+  --input-dir data/generated \
+  --openmp-workers 4 \
+  --mpi-processes 4
+```
+
+The validation script always covers these edge cases even without generated
+files:
+
+- empty input
+- delimiters-only input
+- mixed case / punctuation / numeric input
+- input smaller than worker/process count
+- boundary-sensitive input
+- long-word input
+- generated low-cardinality input
+- generated high-cardinality input
+
+MPI validation is launched through `mpiexec` or `mpirun`. The script prefers
+the launcher values discovered in `build/CMakeCache.txt` when available.
+
+### Run Benchmarks
+
+Dry-run matrix:
+
+```bash
+python3 scripts/run_benchmarks.py \
+  --binary ./build/wf-benchmark \
+  --input-dir data/generated \
+  --dry-run \
+  --output benchmarks/results/raw.csv \
+  --json-output benchmarks/results/raw.json
+```
+
+Dry-run defaults:
+
+- profiles: `natural`, `highcard`
+- size: `10 MB`
+- OpenMP workers: `1,4`
+- MPI processes: `1,4`
+- measured runs: `2`
+- warmup runs: `1`
+
+Standard benchmark defaults:
+
+- methods: `sequential`, `openmp`, `mpi`
+- OpenMP workers: `1,2,4,8,10`
+- MPI processes: `1,2,4,8,10`
+- measured runs: `5`
+- warmup runs: `1`
+
+Recommended local Mac worker/process counts are `1`, `4`, and `8`; use `10`
+only if the machine actually has enough logical cores and MPI ranks to make the
+comparison meaningful.
+
+### Summarize Results
+
+```bash
+python3 scripts/summarize_benchmarks.py \
+  --input benchmarks/results/raw.csv \
+  --output benchmarks/results/summary.csv
+```
+
+This writes:
+
+- `benchmarks/results/summary.csv`: total-time summary per profile/size/method/worker count
+- `benchmarks/results/summary_phases.csv`: phase medians and other per-phase stats
+
+Summary metrics:
+
+- median total time
+- minimum total time
+- mean total time
+- standard deviation when at least two measured runs exist
+- speedup versus the sequential median for the same input profile and size
+- efficiency as `speedup / worker_count`
+
+For sequential runs, speedup and efficiency are both `1.0`.
+
+### Reproducibility Notes
+
+- Use a `Release` build for all benchmark runs
+- Use the same `wf-benchmark` binary for sequential, OpenMP, and MPI modes
+- Use the same input files for all modes
+- Use `--no-output --benchmark` for the main performance runs
+- Use repeated runs and treat the median as the primary metric
+- File-system cache effects can materially change timings across repeated runs
+- On a single Mac, OpenMP may outperform MPI because MPI pays extra launch and communication overhead even in shared-memory environments
+- If you want to measure output writing separately, run dedicated `--output ... --benchmark` experiments outside the main benchmark matrix
+
+### End-To-End Example
+
+```bash
+python3 scripts/generate_benchmark_inputs.py --suite smoke --output-dir data/generated
+python3 scripts/validate_correctness.py --binary ./build/wf-benchmark --input-dir data/generated --openmp-workers 4 --mpi-processes 4
+python3 scripts/run_benchmarks.py --binary ./build/wf-benchmark --input-dir data/generated --dry-run --output benchmarks/results/raw.csv --json-output benchmarks/results/raw.json
+python3 scripts/summarize_benchmarks.py --input benchmarks/results/raw.csv --output benchmarks/results/summary.csv
+```
 
 Future agents must not reintroduce AppleClang-specific OpenMP workaround
 logic. Always use Homebrew LLVM for a clean OpenMP experience.

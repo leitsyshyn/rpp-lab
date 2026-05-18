@@ -1,4 +1,5 @@
 include(FetchContent)
+find_package(Python3 QUIET COMPONENTS Interpreter)
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
@@ -49,6 +50,13 @@ if(MPI_FOUND)
             -DWF_TEST_CASE=benchmark_suite
             -DWF_TEST_TEMP_DIR=${CMAKE_CURRENT_BINARY_DIR}/mpi_benchmark_suite
             -P ${CMAKE_CURRENT_SOURCE_DIR}/mpi_integration.cmake
+    )
+endif()
+
+if(Python3_Interpreter_FOUND)
+    add_test(
+        NAME wf_benchmark_script_tests
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_benchmark_scripts.py
     )
 endif()
 

@@ -96,6 +96,9 @@ int main(int argc, char** argv) {
         case wf::execution_method::sequential:
             summary = wf::run_sequential(config);
             break;
+        case wf::execution_method::sequential_2:
+            summary = wf::run_sequential_2(config);
+            break;
         case wf::execution_method::openmp:
 #ifdef WF_HAS_OPENMP
             summary = wf::run_openmp(config);
