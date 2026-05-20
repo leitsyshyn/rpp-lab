@@ -63,6 +63,9 @@ run_result run_openmp(const run_config& config) {
     if (config.input_path.empty()) {
         throw std::runtime_error("OpenMP runner requires an input path");
     }
+    if (config.output_enabled && !config.finalize_enabled) {
+        throw std::runtime_error("OpenMP output requires deterministic finalization");
+    }
 
     const auto total_start = clock::now();
 
@@ -114,18 +117,21 @@ run_result run_openmp(const run_config& config) {
         }
     }
     const auto merge_end = clock::now();
+    const std::size_t unique_word_count = local_frequencies.front().size();
 
     const auto finalize_start = clock::now();
-    frequency_map frequencies(local_frequencies.front().begin(),
-                              local_frequencies.front().end());
+    std::optional<frequency_map> frequencies;
+    if (config.finalize_enabled) {
+        frequencies = materialize_frequency_map(std::move(local_frequencies.front()));
+    }
     const auto finalize_end = clock::now();
 
     const auto write_start = clock::now();
     if (config.output_enabled) {
         if (config.output_path.has_value()) {
-            write_frequency_map(*config.output_path, frequencies);
+            write_frequency_map(*config.output_path, *frequencies);
         } else {
-            write_frequency_map(std::cout, frequencies);
+            write_frequency_map(std::cout, *frequencies);
         }
     }
     const auto write_end = clock::now();
@@ -135,7 +141,7 @@ run_result run_openmp(const run_config& config) {
     run_result result;
     result.frequencies = std::move(frequencies);
     result.total_word_count = total_word_count;
-    result.unique_word_count = result.frequencies->size();
+    result.unique_word_count = unique_word_count;
     result.text_size = text_size;
 
     if (config.benchmark_enabled) {

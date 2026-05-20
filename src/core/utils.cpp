@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 namespace wf {
 
@@ -88,9 +89,23 @@ std::string read_file(const std::filesystem::path& input_path) {
     return contents;
 }
 
+frequency_map materialize_frequency_map(unordered_frequency_map frequencies) {
+    frequency_map result;
+    result.reserve(frequencies.size());
+    while (!frequencies.empty()) {
+        auto node = frequencies.extract(frequencies.begin());
+        result.push_back({std::move(node.key()), node.mapped()});
+    }
+
+    std::sort(result.begin(), result.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.word < rhs.word;
+    });
+    return result;
+}
+
 void write_frequency_map(std::ostream& output, const frequency_map& frequencies) {
-    for (const auto& [word, count] : frequencies) {
-        output << word << ' ' << count << '\n';
+    for (const auto& entry : frequencies) {
+        output << entry.word << ' ' << entry.count << '\n';
         if (!output) {
             throw std::runtime_error("failed to write frequency map");
         }

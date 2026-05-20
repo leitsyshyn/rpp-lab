@@ -7,6 +7,7 @@
 #include <iostream>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -206,6 +207,10 @@ void pack_entry(std::vector<std::byte>& bytes, std::string_view word, std::size_
     MPI_Comm_size(MPI_COMM_WORLD, &process_count);
 
     try {
+        if (config.output_enabled && !config.finalize_enabled) {
+            throw std::runtime_error("MPI output requires deterministic finalization");
+        }
+
         const double total_start = MPI_Wtime();
 
         const double read_start = MPI_Wtime();
@@ -288,8 +293,10 @@ void pack_entry(std::vector<std::byte>& bytes, std::string_view word, std::size_
                     MPI_CHAR, 0, MPI_COMM_WORLD);
         const double gather_end = MPI_Wtime();
 
-        frequency_map frequencies;
+        unordered_frequency_map gathered_frequencies;
+        std::optional<frequency_map> frequencies;
         std::size_t total_word_count = 0;
+        std::size_t unique_word_count = 0;
         double finalize_start = 0.0;
         double finalize_end = 0.0;
         if (rank == 0) {
@@ -298,9 +305,13 @@ void pack_entry(std::vector<std::byte>& bytes, std::string_view word, std::size_
                 const std::vector<entry> entries = unpack_entries(
                     packet(gathered_bytes, gathered_counts, gathered_displacements, source));
                 for (const auto& entry : entries) {
-                    frequencies.emplace(entry.word, entry.count);
+                    gathered_frequencies.emplace(entry.word, entry.count);
                     total_word_count += entry.count;
                 }
+            }
+            unique_word_count = gathered_frequencies.size();
+            if (config.finalize_enabled) {
+                frequencies = materialize_frequency_map(std::move(gathered_frequencies));
             }
             finalize_end = MPI_Wtime();
         }
@@ -310,9 +321,9 @@ void pack_entry(std::vector<std::byte>& bytes, std::string_view word, std::size_
         if (rank == 0 && config.output_enabled) {
             write_start = MPI_Wtime();
             if (config.output_path.has_value()) {
-                write_frequency_map(*config.output_path, frequencies);
+                write_frequency_map(*config.output_path, *frequencies);
             } else {
-                write_frequency_map(std::cout, frequencies);
+                write_frequency_map(std::cout, *frequencies);
             }
             write_end = MPI_Wtime();
         }
@@ -325,7 +336,7 @@ void pack_entry(std::vector<std::byte>& bytes, std::string_view word, std::size_
         if (rank == 0) {
             result.frequencies = std::move(frequencies);
             result.total_word_count = total_word_count;
-            result.unique_word_count = result.frequencies->size();
+            result.unique_word_count = unique_word_count;
         }
 
         if (config.benchmark_enabled) {

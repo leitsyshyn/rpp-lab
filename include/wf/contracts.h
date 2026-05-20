@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <filesystem>
-#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -16,7 +15,14 @@ enum class method {
     mpi,
 };
 
-using frequency_map = std::map<std::string, std::size_t>;
+struct frequency_entry {
+    std::string word;
+    std::size_t count{0};
+
+    [[nodiscard]] bool operator==(const frequency_entry&) const = default;
+};
+
+using frequency_map = std::vector<frequency_entry>;
 
 [[nodiscard]] constexpr std::string_view to_string(method method) noexcept {
     switch (method) {
@@ -55,6 +61,12 @@ struct run_config {
     //   output_enabled == false  => compute only; output_path is ignored
     //   output_enabled == true   => write to output_path if set, else stdout
     bool output_enabled{false};
+
+    // Controls whether the internal hash table is materialized into the
+    // deterministic frequency_map representation. Benchmarks keep this enabled
+    // by default so finalization cost is measured unless explicitly disabled.
+    bool finalize_enabled{true};
+
     std::optional<std::filesystem::path> output_path;
 
     bool benchmark_enabled{false};

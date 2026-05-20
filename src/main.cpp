@@ -56,6 +56,10 @@ int main(int argc, char** argv) {
                 config.output_path.reset();
                 continue;
             }
+            if (argument == "--no-finalize") {
+                config.finalize_enabled = false;
+                continue;
+            }
             if (argument == "--benchmark") {
                 config.benchmark_enabled = true;
                 continue;
@@ -85,6 +89,9 @@ int main(int argc, char** argv) {
         }
         if (config.input_path.empty()) {
             throw std::runtime_error("input path is required");
+        }
+        if (config.output_enabled && !config.finalize_enabled) {
+            throw std::runtime_error("--no-finalize requires --no-output");
         }
 
         config.selected_method = *selected_method;

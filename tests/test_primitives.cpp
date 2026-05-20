@@ -56,7 +56,8 @@ TEST(PrimitiveTest, ReadTextFileThrowsForMissingPath) {
 }
 
 TEST(PrimitiveTest, WriteFrequencyMapProducesDeterministicSortedOutput) {
-    const wf::frequency_map frequencies{{"banana", 1}, {"apple", 3}, {"2026", 2}};
+    const wf::unordered_frequency_map unordered_frequencies{{"banana", 1}, {"apple", 3}, {"2026", 2}};
+    const wf::frequency_map frequencies = wf::materialize_frequency_map(unordered_frequencies);
 
     std::ostringstream output;
     wf::write_frequency_map(output, frequencies);

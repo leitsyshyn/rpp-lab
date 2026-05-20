@@ -40,6 +40,7 @@ inline void count_word(unordered_frequency_map& frequencies, std::size_t& total_
     const auto [it, inserted] = frequencies.try_emplace(std::move(word), 0);
     ++it->second;
     ++total_word_count;
+    static_cast<void>(inserted);
 }
 
 inline void count_word(unordered_frequency_map& frequencies, std::string word) {
@@ -80,6 +81,8 @@ void for_each_word(const std::string& text, range range, Callback&& callback) {
 }
 
 [[nodiscard]] std::string read_file(const std::filesystem::path& input_path);
+
+[[nodiscard]] frequency_map materialize_frequency_map(unordered_frequency_map frequencies);
 
 void write_frequency_map(std::ostream& output, const frequency_map& frequencies);
 

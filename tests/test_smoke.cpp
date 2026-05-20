@@ -36,8 +36,8 @@ TEST(SmokeTest, ExecutionMethodConversions) {
 
 TEST(SmokeTest, ContractTypesAreConstructible) {
     wf::frequency_map frequencies;
-    frequencies.emplace("alpha", 2);
-    frequencies.emplace("beta", 1);
+    frequencies.push_back({"alpha", 2});
+    frequencies.push_back({"beta", 1});
 
     wf::run_config config;
     config.selected_method = wf::method::mpi;
@@ -65,7 +65,8 @@ TEST(SmokeTest, ContractTypesAreConstructible) {
     result.benchmark = benchmark;
 
     ASSERT_TRUE(result.frequencies.has_value());
-    EXPECT_EQ(result.frequencies->at("alpha"), 2U);
+    EXPECT_EQ(result.frequencies->front().word, "alpha");
+    EXPECT_EQ(result.frequencies->front().count, 2U);
     EXPECT_EQ(result.total_word_count, 3U);
     EXPECT_EQ(result.unique_word_count, 2U);
     EXPECT_EQ(result.text_size, 1024U);

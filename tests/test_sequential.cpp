@@ -76,6 +76,29 @@ TEST(SequentialRunnerTest, BenchmarkModeBuildsExpectedPhases) {
     std::filesystem::remove(input_path);
 }
 
+TEST(SequentialRunnerTest, NoFinalizeSkipsMaterializedFrequencies) {
+    const auto input_path = unique_temp_path("wf_sequential_no_finalize_input");
+    write_text_file(input_path, "one two two three\n");
+
+    wf::run_config config;
+    config.selected_method = wf::method::sequential;
+    config.input_path = input_path;
+    config.output_enabled = false;
+    config.finalize_enabled = false;
+    config.benchmark_enabled = true;
+
+    const wf::run_result result = wf::run_sequential(config);
+
+    EXPECT_FALSE(result.frequencies.has_value());
+    EXPECT_EQ(result.total_word_count, 4U);
+    EXPECT_EQ(result.unique_word_count, 3U);
+    ASSERT_TRUE(result.benchmark.has_value());
+    ASSERT_EQ(result.benchmark->phases.size(), 4U);
+    EXPECT_EQ(result.benchmark->phases[2].name, "finalize");
+
+    std::filesystem::remove(input_path);
+}
+
 TEST(SequentialRunnerTest, OutputFileModeWritesExpectedContent) {
     const auto input_path = unique_temp_path("wf_sequential_output_input");
     const auto output_path = unique_temp_path("wf_sequential_output_result");
