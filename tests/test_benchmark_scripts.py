@@ -20,14 +20,14 @@ class BenchmarkScriptTest(unittest.TestCase):
         report = parse_benchmark_report(
             "method: sequential\n"
             "worker_count: 1\n"
-            "input_size_bytes: 17\n"
+            "text_size: 17\n"
             "word_count: 4\n"
             "unique_word_count: 3\n"
-            "total_seconds: 0.500000\n"
+            "total_duration: 0.500000\n"
             "phases:\n"
-            "- read 0.100000 local\n"
-            "- count 0.200000 local\n"
-            "- finalize 0.050000 local\n"
+            "- read 0.100000\n"
+            "- count 0.200000\n"
+            "- finalize 0.050000\n"
         )
 
         self.assertEqual(report.method, "sequential")
@@ -40,6 +40,23 @@ class BenchmarkScriptTest(unittest.TestCase):
             [phase.name for phase in report.phases],
             ["read", "count", "finalize"],
         )
+        self.assertEqual([phase.scope for phase in report.phases], ["global", "global", "global"])
+
+    def test_benchmark_report_parser_accepts_legacy_format(self) -> None:
+        report = parse_benchmark_report(
+            "method: sequential\n"
+            "worker_count: 1\n"
+            "input_size_bytes: 17\n"
+            "word_count: 4\n"
+            "unique_word_count: 3\n"
+            "total_seconds: 0.500000\n"
+            "phases:\n"
+            "- read 0.100000 local\n"
+        )
+
+        self.assertEqual(report.input_size_bytes, 17)
+        self.assertEqual(report.total_seconds, 0.5)
+        self.assertEqual(report.phases[0].scope, "local")
 
     def test_generator_is_deterministic_for_small_files(self) -> None:
         with tempfile.TemporaryDirectory(prefix="wf_script_test_") as temp_dir_text:

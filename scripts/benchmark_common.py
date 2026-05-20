@@ -17,7 +17,7 @@ DEFAULT_SEED = 12345
 SUPPORTED_PROFILES = ("natural", "lowcard", "highcard", "boundary")
 
 _REPORT_START_RE = re.compile(r"^method:\s+(\S+)\s*$")
-_PHASE_RE = re.compile(r"^-\s+(\S+)\s+([0-9]+(?:\.[0-9]+)?)\s+(\S+)\s*$")
+_PHASE_RE = re.compile(r"^-\s+(\S+)\s+([0-9]+(?:\.[0-9]+)?)(?:\s+(\S+))?\s*$")
 _NAME_RE = re.compile(
     r"^(?P<profile>[a-z]+)_(?P<size_mb>[0-9]+)mb(?:_seed(?P<seed>[0-9]+))?\.txt$"
 )
@@ -200,19 +200,21 @@ def parse_benchmark_report(text: str) -> ParsedBenchmarkReport:
     if len(lines) < 7:
         raise ValueError("benchmark report is incomplete")
 
-    def expect_prefix(index: int, prefix: str) -> str:
+    def expect_prefix(index: int, *prefixes: str) -> str:
         line = lines[index]
-        if not line.startswith(prefix):
-            raise ValueError(f"expected '{prefix}' at line {index + 1}, got: {line!r}")
-        return line[len(prefix) :].strip()
+        for prefix in prefixes:
+            if line.startswith(prefix):
+                return line[len(prefix) :].strip()
+        expected = " or ".join(repr(prefix) for prefix in prefixes)
+        raise ValueError(f"expected {expected} at line {index + 1}, got: {line!r}")
 
     method = expect_prefix(0, "method:")
     worker_count = int(expect_prefix(1, "worker_count:"))
-    input_size_text = expect_prefix(2, "input_size_bytes:")
+    input_size_text = expect_prefix(2, "input_size_bytes:", "text_size:")
     input_size_bytes = None if input_size_text == "unknown" else int(input_size_text)
     word_count = int(expect_prefix(3, "word_count:"))
     unique_word_count = int(expect_prefix(4, "unique_word_count:"))
-    total_seconds = float(expect_prefix(5, "total_seconds:"))
+    total_seconds = float(expect_prefix(5, "total_seconds:", "total_duration:"))
 
     if lines[6] != "phases:":
         raise ValueError(f"expected 'phases:' line, got: {lines[6]!r}")
@@ -226,7 +228,7 @@ def parse_benchmark_report(text: str) -> ParsedBenchmarkReport:
             ParsedPhase(
                 name=match.group(1),
                 seconds=float(match.group(2)),
-                scope=match.group(3),
+                scope=match.group(3) or "global",
             )
         )
 
@@ -270,9 +272,11 @@ def serialize_report(report: ParsedBenchmarkReport) -> dict[str, Any]:
         "method": report.method,
         "worker_count": report.worker_count,
         "input_size_bytes": report.input_size_bytes,
+        "text_size": report.input_size_bytes,
         "word_count": report.word_count,
         "unique_word_count": report.unique_word_count,
         "total_seconds": report.total_seconds,
+        "total_duration": report.total_seconds,
         "phases": [asdict(phase) for phase in report.phases],
     }
 
