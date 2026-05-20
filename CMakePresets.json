@@ -1,0 +1,62 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "llvm-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
+        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++",
+        "CMAKE_PREFIX_PATH": "/opt/homebrew/opt/llvm;/opt/homebrew/opt/libomp;/opt/homebrew/opt/open-mpi"
+      }
+    },
+    {
+      "name": "llvm-debug",
+      "inherits": "llvm-base",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "llvm-release",
+      "inherits": "llvm-base",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "llvm-debug",
+      "configurePreset": "llvm-debug"
+    },
+    {
+      "name": "llvm-release",
+      "configurePreset": "llvm-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "llvm-debug",
+      "configurePreset": "llvm-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "llvm-release",
+      "configurePreset": "llvm-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

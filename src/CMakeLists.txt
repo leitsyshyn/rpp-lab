@@ -1,7 +1,6 @@
 # Shared core library — compiled, not header-only
 add_library(wf_core STATIC
-    core/version.cpp
-    core/primitives.cpp
+    core/utils.cpp
 )
 target_include_directories(wf_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_compile_features(wf_core PUBLIC cxx_std_20)
@@ -25,7 +24,9 @@ endif()
 
 # MPI support — conditional
 if(MPI_FOUND)
-    target_sources(wf-benchmark PRIVATE mpi/mpi.cpp)
+    target_sources(wf-benchmark PRIVATE
+        mpi/mpi.cpp
+    )
     target_compile_definitions(wf-benchmark PRIVATE WF_HAS_MPI)
     target_link_libraries(wf-benchmark PRIVATE MPI::MPI_CXX)
 endif()

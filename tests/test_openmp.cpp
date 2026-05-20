@@ -11,7 +11,7 @@
 #include <string_view>
 
 #include <wf/contracts.h>
-#include <wf/primitives.h>
+#include <wf/utils.h>
 #include <wf/runners.h>
 
 namespace {
@@ -39,12 +39,12 @@ std::string read_output_file(const std::filesystem::path& path) {
     return buffer.str();
 }
 
-wf::run_summary
+wf::run_result
 run_sequential_for_test(const std::filesystem::path& input_path, bool output_enabled = false,
                         const std::optional<std::filesystem::path>& output_path = std::nullopt,
                         bool benchmark_enabled = false) {
     wf::run_config config;
-    config.selected_method = wf::execution_method::sequential;
+    config.selected_method = wf::method::sequential;
     config.input_path = input_path;
     config.output_enabled = output_enabled;
     config.output_path = output_path;
@@ -52,13 +52,13 @@ run_sequential_for_test(const std::filesystem::path& input_path, bool output_ena
     return wf::run_sequential(config);
 }
 
-wf::run_summary
-run_openmp_for_test(const std::filesystem::path& input_path, std::uint64_t workers,
+wf::run_result
+run_openmp_for_test(const std::filesystem::path& input_path, int workers,
                     bool output_enabled = false,
                     const std::optional<std::filesystem::path>& output_path = std::nullopt,
                     bool benchmark_enabled = false) {
     wf::run_config config;
-    config.selected_method = wf::execution_method::openmp;
+    config.selected_method = wf::method::openmp;
     config.input_path = input_path;
     config.output_enabled = output_enabled;
     config.output_path = output_path;
@@ -67,19 +67,19 @@ run_openmp_for_test(const std::filesystem::path& input_path, std::uint64_t worke
     return wf::run_openmp(config);
 }
 
-void expect_openmp_matches_sequential(std::string_view contents, std::uint64_t workers) {
+void expect_openmp_matches_sequential(std::string_view contents, int workers) {
     const auto input_path = unique_temp_path("wf_openmp_match_input");
     write_text_file(input_path, contents);
 
-    const wf::run_summary sequential_summary = run_sequential_for_test(input_path);
-    const wf::run_summary openmp_summary = run_openmp_for_test(input_path, workers);
+    const wf::run_result sequential_result = run_sequential_for_test(input_path);
+    const wf::run_result openmp_result = run_openmp_for_test(input_path, workers);
 
-    ASSERT_TRUE(sequential_summary.result.frequencies.has_value());
-    ASSERT_TRUE(openmp_summary.result.frequencies.has_value());
-    EXPECT_EQ(*openmp_summary.result.frequencies, *sequential_summary.result.frequencies);
-    EXPECT_EQ(openmp_summary.result.total_word_count, sequential_summary.result.total_word_count);
-    EXPECT_EQ(openmp_summary.result.unique_word_count, sequential_summary.result.unique_word_count);
-    EXPECT_EQ(openmp_summary.result.input_size_bytes, sequential_summary.result.input_size_bytes);
+    ASSERT_TRUE(sequential_result.frequencies.has_value());
+    ASSERT_TRUE(openmp_result.frequencies.has_value());
+    EXPECT_EQ(*openmp_result.frequencies, *sequential_result.frequencies);
+    EXPECT_EQ(openmp_result.total_word_count, sequential_result.total_word_count);
+    EXPECT_EQ(openmp_result.unique_word_count, sequential_result.unique_word_count);
+    EXPECT_EQ(openmp_result.text_size, sequential_result.text_size);
 
     std::filesystem::remove(input_path);
 }
@@ -120,24 +120,24 @@ TEST(OpenMPRunnerTest, NoOutputBenchmarkModeStillComputesCorrectResult) {
     const auto input_path = unique_temp_path("wf_openmp_benchmark_input");
     write_text_file(input_path, "One two TWO three three three\n");
 
-    const wf::run_summary sequential_summary = run_sequential_for_test(input_path);
-    const wf::run_summary openmp_summary =
+    const wf::run_result sequential_result = run_sequential_for_test(input_path);
+    const wf::run_result openmp_result =
         run_openmp_for_test(input_path, 4, false, std::nullopt, true);
 
-    ASSERT_TRUE(sequential_summary.result.frequencies.has_value());
-    ASSERT_TRUE(openmp_summary.result.frequencies.has_value());
-    ASSERT_TRUE(openmp_summary.benchmark.has_value());
-    EXPECT_EQ(*openmp_summary.result.frequencies, *sequential_summary.result.frequencies);
-    EXPECT_EQ(openmp_summary.benchmark->method, wf::execution_method::openmp);
-    EXPECT_EQ(openmp_summary.benchmark->worker_count, 4U);
-    EXPECT_EQ(openmp_summary.benchmark->word_count, openmp_summary.result.total_word_count);
-    EXPECT_EQ(openmp_summary.benchmark->unique_word_count, openmp_summary.result.unique_word_count);
-    ASSERT_EQ(openmp_summary.benchmark->phases.size(), 5U);
-    EXPECT_EQ(openmp_summary.benchmark->phases[0].name, "read");
-    EXPECT_EQ(openmp_summary.benchmark->phases[1].name, "parallel_tokenize_count");
-    EXPECT_EQ(openmp_summary.benchmark->phases[2].name, "tree_merge");
-    EXPECT_EQ(openmp_summary.benchmark->phases[3].name, "canonicalize");
-    EXPECT_EQ(openmp_summary.benchmark->phases[4].name, "total");
+    ASSERT_TRUE(sequential_result.frequencies.has_value());
+    ASSERT_TRUE(openmp_result.frequencies.has_value());
+    ASSERT_TRUE(openmp_result.benchmark.has_value());
+    EXPECT_EQ(*openmp_result.frequencies, *sequential_result.frequencies);
+    EXPECT_EQ(openmp_result.benchmark->worker_count, 4);
+    EXPECT_EQ(openmp_result.total_word_count, 6U);
+    EXPECT_EQ(openmp_result.unique_word_count, 3U);
+    ASSERT_EQ(openmp_result.benchmark->phases.size(), 6U);
+    EXPECT_EQ(openmp_result.benchmark->phases[0].name, "read");
+    EXPECT_EQ(openmp_result.benchmark->phases[1].name, "partition");
+    EXPECT_EQ(openmp_result.benchmark->phases[2].name, "count");
+    EXPECT_EQ(openmp_result.benchmark->phases[3].name, "merge");
+    EXPECT_EQ(openmp_result.benchmark->phases[4].name, "finalize");
+    EXPECT_EQ(openmp_result.benchmark->phases[5].name, "write");
 
     std::filesystem::remove(input_path);
 }
@@ -148,19 +148,18 @@ TEST(OpenMPRunnerTest, OutputFileModeWritesDeterministicOutput) {
     const auto openmp_output_path = unique_temp_path("wf_openmp_output");
     write_text_file(input_path, "pear apple pear Banana banana 2026\n");
 
-    const wf::run_summary sequential_summary =
+    const wf::run_result sequential_result =
         run_sequential_for_test(input_path, true, sequential_output_path, true);
-    const wf::run_summary openmp_summary =
+    const wf::run_result openmp_result =
         run_openmp_for_test(input_path, 4, true, openmp_output_path, true);
 
-    ASSERT_TRUE(sequential_summary.result.frequencies.has_value());
-    ASSERT_TRUE(openmp_summary.result.frequencies.has_value());
-    EXPECT_EQ(*openmp_summary.result.frequencies, *sequential_summary.result.frequencies);
+    ASSERT_TRUE(sequential_result.frequencies.has_value());
+    ASSERT_TRUE(openmp_result.frequencies.has_value());
+    EXPECT_EQ(*openmp_result.frequencies, *sequential_result.frequencies);
     EXPECT_EQ(read_output_file(openmp_output_path), read_output_file(sequential_output_path));
-    ASSERT_TRUE(openmp_summary.benchmark.has_value());
-    ASSERT_EQ(openmp_summary.benchmark->phases.size(), 6U);
-    EXPECT_EQ(openmp_summary.benchmark->phases[4].name, "write");
-    EXPECT_EQ(openmp_summary.benchmark->phases[5].name, "total");
+    ASSERT_TRUE(openmp_result.benchmark.has_value());
+    ASSERT_EQ(openmp_result.benchmark->phases.size(), 6U);
+    EXPECT_EQ(openmp_result.benchmark->phases[5].name, "write");
 
     std::filesystem::remove(input_path);
     std::filesystem::remove(sequential_output_path);

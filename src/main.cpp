@@ -1,5 +1,4 @@
 #include <charconv>
-#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <exception>
@@ -10,18 +9,17 @@
 #include <system_error>
 
 #include <wf/contracts.h>
-#include <wf/primitives.h>
+#include <wf/utils.h>
 #include <wf/runners.h>
-#include <wf/version.h>
 
 namespace {
 
-std::uint64_t parse_worker_count_argument(std::string_view value) {
-    std::uint64_t worker_count = 0;
+int parse_worker_count_argument(std::string_view value) {
+    int worker_count = 0;
     const auto* begin = value.data();
     const auto* end = value.data() + value.size();
     const auto [ptr, error_code] = std::from_chars(begin, end, worker_count);
-    if (error_code != std::errc{} || ptr != end || worker_count == 0) {
+    if (error_code != std::errc{} || ptr != end || worker_count <= 0) {
         throw std::runtime_error("--workers requires a positive integer");
     }
 
@@ -91,29 +89,29 @@ int main(int argc, char** argv) {
 
         config.selected_method = *selected_method;
 
-        wf::run_summary summary;
+        wf::run_result result;
         switch (*selected_method) {
-        case wf::execution_method::sequential:
-            summary = wf::run_sequential(config);
+        case wf::method::sequential:
+            result = wf::run_sequential(config);
             break;
-        case wf::execution_method::openmp:
+        case wf::method::openmp:
 #ifdef WF_HAS_OPENMP
-            summary = wf::run_openmp(config);
+            result = wf::run_openmp(config);
             break;
 #else
             throw std::runtime_error("OpenMP support is not available in this build");
 #endif
-        case wf::execution_method::mpi:
+        case wf::method::mpi:
 #ifdef WF_HAS_MPI
-            summary = wf::run_mpi(config);
+            result = wf::run_mpi(config);
             break;
 #else
             throw std::runtime_error("MPI support is not available in this build");
 #endif
         }
 
-        if (summary.benchmark.has_value()) {
-            wf::print_benchmark_report(std::cerr, *summary.benchmark);
+        if (result.benchmark.has_value()) {
+            wf::print_benchmark_report(std::cerr, config.selected_method, result);
         }
 
         return 0;

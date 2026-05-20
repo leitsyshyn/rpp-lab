@@ -29,6 +29,19 @@ clear message telling you to reconfigure with Homebrew LLVM.
 
 ## Configure
 
+Preferred on macOS: use the checked-in LLVM preset so CMake frontends do not
+silently fall back to AppleClang and drop OpenMP support.
+
+```bash
+cmake --preset llvm-debug
+```
+
+Release build:
+
+```bash
+cmake --preset llvm-release
+```
+
 **Canonical macOS command:**
 
 ```bash
@@ -48,7 +61,7 @@ cmake -B build -DWF_BUILD_OPENMP=OFF -DWF_BUILD_MPI=OFF -DWF_BUILD_TESTS=OFF
 ## Build
 
 ```bash
-cmake --build build
+cmake --build --preset llvm-debug
 ```
 
 ## Run
@@ -80,7 +93,7 @@ measurements.
 ## Test
 
 ```bash
-ctest --test-dir build --output-on-failure
+ctest --preset llvm-debug
 ```
 
 ## Format
@@ -132,14 +145,13 @@ Canonical word semantics:
 - normalization lowercases ASCII letters
 - any non-alphanumeric byte is a delimiter
 
-Frequency-map serialization contract:
+Frequency-map output contract:
 
-- deterministic `std::map` order is preserved in the serialized byte stream
+- final output is emitted in deterministic `std::map` order
 - one record is emitted per frequency entry as `word count\n`
 - each record stores the normalized word and its count
-- the format is designed for tokenizer-produced ASCII-normalized words
-- MPI uses it for byte-buffer exchange
-- malformed serialized input is rejected during deserialization
+- MPI uses an internal packed binary transport and only materializes the final
+  sorted map on rank 0
 
 ## Status
 
@@ -147,12 +159,12 @@ This repository implements the shared primitive layer plus sequential, OpenMP,
 and MPI runners.
 
 The sequential mode reads the input once, scans the full byte range directly,
-counts into an internal hash map, and canonicalizes into the deterministic
+counts into an internal hash map, and finalizes into the deterministic
 sorted frequency map used for output.
 
 The OpenMP mode reads the input once, splits the text into byte ranges across
 workers, performs boundary-safe shared-memory chunk scanning, counts into
-thread-local hash maps, merges them with a tree reduction, and canonicalizes
+thread-local hash maps, merges them with a tree reduction, and finalizes
 the final result into the same deterministic frequency map as the sequential
 baseline.
 
@@ -164,8 +176,8 @@ mode remains the correctness reference.
 Sequential benchmark phases are:
 
 - `read`
-- `tokenize_count`
-- `canonicalize`
+- `count`
+- `finalize`
 - `write` when output is enabled
 - `total`
 

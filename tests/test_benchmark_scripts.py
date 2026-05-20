@@ -26,8 +26,8 @@ class BenchmarkScriptTest(unittest.TestCase):
             "total_seconds: 0.500000\n"
             "phases:\n"
             "- read 0.100000 local\n"
-            "- tokenize_count 0.200000 local\n"
-            "- canonicalize 0.050000 local\n"
+            "- count 0.200000 local\n"
+            "- finalize 0.050000 local\n"
         )
 
         self.assertEqual(report.method, "sequential")
@@ -38,7 +38,7 @@ class BenchmarkScriptTest(unittest.TestCase):
         self.assertEqual(report.total_seconds, 0.5)
         self.assertEqual(
             [phase.name for phase in report.phases],
-            ["read", "tokenize_count", "canonicalize"],
+            ["read", "count", "finalize"],
         )
 
     def test_generator_is_deterministic_for_small_files(self) -> None:

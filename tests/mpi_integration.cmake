@@ -128,16 +128,15 @@ if(WF_TEST_CASE STREQUAL "benchmark_suite")
     foreach(required_fragment
             "method: mpi"
             "worker_count: 4"
-            "mpi_file_open_size"
-            "range_compute"
-            "mpi_file_read"
-            "boundary_tokenize_count"
-            "hash_bucketize"
+            "read"
+            "partition"
+            "count"
+            "bucketize"
             "alltoall_sizes"
             "alltoall_data"
-            "owner_merge"
-            "final_gather"
-            "root_final_merge"
+            "merge"
+            "gather"
+            "finalize"
             "total")
         string(FIND "${mpi_stderr}" "${required_fragment}" fragment_index)
         if(fragment_index EQUAL -1)
