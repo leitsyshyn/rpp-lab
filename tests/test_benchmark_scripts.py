@@ -38,9 +38,12 @@ class BenchmarkScriptTest(unittest.TestCase):
         self.assertEqual(report.total_seconds, 0.5)
         self.assertEqual(
             [phase.name for phase in report.phases],
-            ["read", "count", "finalize"],
+            ["read", "count", "finalize", "total"],
         )
-        self.assertEqual([phase.scope for phase in report.phases], ["global", "global", "global"])
+        self.assertEqual(
+            [phase.scope for phase in report.phases],
+            ["global", "global", "global", "global"],
+        )
 
     def test_benchmark_report_parser_accepts_legacy_format(self) -> None:
         report = parse_benchmark_report(
@@ -57,6 +60,7 @@ class BenchmarkScriptTest(unittest.TestCase):
         self.assertEqual(report.input_size_bytes, 17)
         self.assertEqual(report.total_seconds, 0.5)
         self.assertEqual(report.phases[0].scope, "local")
+        self.assertEqual(report.phases[1].name, "total")
 
     def test_generator_is_deterministic_for_small_files(self) -> None:
         with tempfile.TemporaryDirectory(prefix="wf_script_test_") as temp_dir_text:

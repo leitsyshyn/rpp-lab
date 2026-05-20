@@ -9,7 +9,7 @@
 #include <string_view>
 
 #include <wf/contracts.h>
-#include <wf/utils.h>
+#include <wf/shared.h>
 
 namespace {
 
@@ -56,7 +56,8 @@ TEST(PrimitiveTest, ReadTextFileThrowsForMissingPath) {
 }
 
 TEST(PrimitiveTest, WriteFrequencyMapProducesDeterministicSortedOutput) {
-    const wf::unordered_frequency_map unordered_frequencies{{"banana", 1}, {"apple", 3}, {"2026", 2}};
+    const wf::unordered_frequency_map unordered_frequencies{
+        {"banana", 1}, {"apple", 3}, {"2026", 2}};
     const wf::frequency_map frequencies = wf::materialize_frequency_map(unordered_frequencies);
 
     std::ostringstream output;

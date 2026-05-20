@@ -79,7 +79,7 @@ if(CLANG_FORMAT)
         *.cpp *.hpp *.h *.cxx *.hxx
     )
     set(ALL_FORMAT_FILES ${ALL_SOURCES})
-    list(FILTER ALL_FORMAT_FILES EXCLUDE REGEX "build/")
+    list(FILTER ALL_FORMAT_FILES EXCLUDE REGEX "/build[^/]*/")
 
     add_custom_target(format
         COMMAND ${CLANG_FORMAT} -i -style=file ${ALL_FORMAT_FILES}

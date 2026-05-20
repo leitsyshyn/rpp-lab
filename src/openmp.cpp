@@ -10,8 +10,8 @@
 #include <utility>
 #include <vector>
 
-#include <wf/utils.h>
 #include <wf/runners.h>
+#include <wf/shared.h>
 
 namespace wf {
 
@@ -46,8 +46,7 @@ namespace {
     return worker_count;
 }
 
-void merge_frequency_maps(unordered_frequency_map& destination,
-                          unordered_frequency_map& source) {
+void merge_frequency_maps(unordered_frequency_map& destination, unordered_frequency_map& source) {
     destination.reserve(destination.size() + source.size());
     for (const auto& [word, count] : source) {
         const auto [it, inserted] = destination.try_emplace(word, 0);

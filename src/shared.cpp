@@ -1,4 +1,4 @@
-#include <wf/utils.h>
+#include <wf/shared.h>
 
 #include <cstdint>
 #include <filesystem>
@@ -97,9 +97,8 @@ frequency_map materialize_frequency_map(unordered_frequency_map frequencies) {
         result.push_back({std::move(node.key()), node.mapped()});
     }
 
-    std::sort(result.begin(), result.end(), [](const auto& lhs, const auto& rhs) {
-        return lhs.word < rhs.word;
-    });
+    std::sort(result.begin(), result.end(),
+              [](const auto& lhs, const auto& rhs) { return lhs.word < rhs.word; });
     return result;
 }
 

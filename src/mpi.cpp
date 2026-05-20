@@ -15,7 +15,7 @@
 #include <vector>
 
 #include <wf/runners.h>
-#include <wf/utils.h>
+#include <wf/shared.h>
 
 namespace wf {
 
@@ -189,8 +189,8 @@ void pack_entry(std::vector<std::byte>& bytes, std::string_view word, std::size_
 }
 
 [[nodiscard]] std::span<const std::byte> packet(std::span<const std::byte> bytes,
-                                               std::span<const int> counts,
-                                               std::span<const int> offsets, int index) {
+                                                std::span<const int> counts,
+                                                std::span<const int> offsets, int index) {
     return bytes.subspan(offsets[index], counts[index]);
 }
 

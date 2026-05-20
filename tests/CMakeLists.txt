@@ -13,7 +13,7 @@ add_executable(wf_tests
     test_smoke.cpp
     test_primitives.cpp
     test_sequential.cpp
-    ${CMAKE_SOURCE_DIR}/src/sequential/sequential.cpp
+    ${CMAKE_SOURCE_DIR}/src/sequential.cpp
 )
 target_link_libraries(wf_tests PRIVATE wf_core GTest::gtest_main)
 target_compile_features(wf_tests PRIVATE cxx_std_20)
@@ -21,7 +21,7 @@ target_compile_features(wf_tests PRIVATE cxx_std_20)
 if(OpenMP_FOUND)
     target_sources(wf_tests PRIVATE
         test_openmp.cpp
-        ${CMAKE_SOURCE_DIR}/src/openmp/openmp.cpp
+        ${CMAKE_SOURCE_DIR}/src/openmp.cpp
     )
     target_compile_definitions(wf_tests PRIVATE WF_HAS_OPENMP)
     target_link_libraries(wf_tests PRIVATE OpenMP::OpenMP_CXX)

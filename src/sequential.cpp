@@ -4,8 +4,8 @@
 #include <stdexcept>
 #include <string>
 
-#include <wf/utils.h>
 #include <wf/runners.h>
+#include <wf/shared.h>
 
 namespace wf {
 

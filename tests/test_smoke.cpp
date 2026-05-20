@@ -6,8 +6,8 @@
 #include <type_traits>
 
 #include <wf/contracts.h>
-#include <wf/utils.h>
 #include <wf/runners.h>
+#include <wf/shared.h>
 
 TEST(SmokeTest, CompilesAndLinks) {
     EXPECT_TRUE(true);
@@ -76,8 +76,8 @@ TEST(SmokeTest, ContractTypesAreConstructible) {
 }
 
 TEST(SmokeTest, PrimitiveAndRunnerDeclarationsAreVisible) {
-    static_assert(std::is_same_v<decltype(&wf::read_file),
-                                 std::string (*)(const std::filesystem::path&)>);
+    static_assert(
+        std::is_same_v<decltype(&wf::read_file), std::string (*)(const std::filesystem::path&)>);
     static_assert(
         std::is_same_v<decltype(static_cast<void (*)(std::ostream&, const wf::frequency_map&)>(
                            &wf::write_frequency_map)),
@@ -87,9 +87,8 @@ TEST(SmokeTest, PrimitiveAndRunnerDeclarationsAreVisible) {
             decltype(static_cast<void (*)(const std::filesystem::path&, const wf::frequency_map&)>(
                 &wf::write_frequency_map)),
             void (*)(const std::filesystem::path&, const wf::frequency_map&)>);
-    static_assert(
-        std::is_same_v<decltype(&wf::print_benchmark_report),
-                       void (*)(std::ostream&, wf::method, const wf::run_result&)>);
+    static_assert(std::is_same_v<decltype(&wf::print_benchmark_report),
+                                 void (*)(std::ostream&, wf::method, const wf::run_result&)>);
     static_assert(
         std::is_same_v<decltype(&wf::run_sequential), wf::run_result (*)(const wf::run_config&)>);
     static_assert(

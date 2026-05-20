@@ -9,8 +9,8 @@
 #include <system_error>
 
 #include <wf/contracts.h>
-#include <wf/utils.h>
 #include <wf/runners.h>
+#include <wf/shared.h>
 
 namespace {
 

@@ -108,11 +108,11 @@ Requires `clang-format` on `PATH` or reachable via `CMAKE_PREFIX_PATH`.
 ## Project structure
 
 ```
-include/wf/      – public contracts, primitive declarations, runner APIs
-src/core/        – shared core library (compiled, not header-only)
-src/sequential/  – sequential reference implementation
-src/openmp/      – OpenMP shared-memory implementation
-src/mpi/         – MPI distributed-memory implementation
+include/wf/      – public contracts, shared primitives, runner APIs
+src/shared.cpp   – shared core library (compiled, not header-only)
+src/sequential.cpp – sequential reference implementation
+src/openmp.cpp   – OpenMP shared-memory implementation
+src/mpi.cpp      – MPI distributed-memory implementation
 tests/           – Google Test unit tests
 scripts/         – benchmark generation / validation / aggregation helpers
 data/generated/  – generated benchmark inputs (git ignored)

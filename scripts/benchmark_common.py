@@ -234,6 +234,8 @@ def parse_benchmark_report(text: str) -> ParsedBenchmarkReport:
 
     if not phases:
         raise ValueError("benchmark report does not contain any phases")
+    if not any(phase.name == "total" for phase in phases):
+        phases.append(ParsedPhase(name="total", seconds=total_seconds, scope="global"))
 
     return ParsedBenchmarkReport(
         method=method,

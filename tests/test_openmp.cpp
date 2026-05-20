@@ -11,8 +11,8 @@
 #include <string_view>
 
 #include <wf/contracts.h>
-#include <wf/utils.h>
 #include <wf/runners.h>
+#include <wf/shared.h>
 
 namespace {
 

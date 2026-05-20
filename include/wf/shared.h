@@ -89,7 +89,6 @@ void write_frequency_map(std::ostream& output, const frequency_map& frequencies)
 void write_frequency_map(const std::filesystem::path& output_path,
                          const frequency_map& frequencies);
 
-void print_benchmark_report(std::ostream& output, method selected_method,
-                            const run_result& result);
+void print_benchmark_report(std::ostream& output, method selected_method, const run_result& result);
 
 } // namespace wf
