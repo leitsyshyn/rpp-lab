@@ -66,20 +66,20 @@ run_result run_openmp(const run_config& config) {
         throw std::runtime_error("OpenMP output requires deterministic finalization");
     }
 
-    const auto total_start = clock::now();
+    const double total_start = omp_get_wtime();
 
-    const auto read_start = clock::now();
+    const double read_start = omp_get_wtime();
     const std::string text = read_file(config.input_path);
-    const auto read_end = clock::now();
+    const double read_end = omp_get_wtime();
     const std::size_t text_size = text.size();
 
     const int worker_count = get_worker_count(config);
 
-    const auto partition_start = clock::now();
+    const double partition_start = omp_get_wtime();
     const auto ranges = build_even_ranges(text_size, worker_count);
-    const auto partition_end = clock::now();
+    const double partition_end = omp_get_wtime();
 
-    const auto count_start = clock::now();
+    const double count_start = omp_get_wtime();
     std::vector<unordered_frequency_map> local_frequencies((worker_count));
     std::vector<std::size_t> local_word_counts((worker_count), 0);
 
@@ -98,9 +98,9 @@ run_result run_openmp(const run_config& config) {
     for (const std::size_t local_word_count : local_word_counts) {
         total_word_count += local_word_count;
     }
-    const auto count_end = clock::now();
+    const double count_end = omp_get_wtime();
 
-    const auto merge_start = clock::now();
+    const double merge_start = omp_get_wtime();
     for (std::size_t stride = 1; stride < local_frequencies.size(); stride *= 2) {
         const std::size_t pair_count = (local_frequencies.size() + (2 * stride) - 1) / (2 * stride);
 
@@ -115,17 +115,17 @@ run_result run_openmp(const run_config& config) {
             }
         }
     }
-    const auto merge_end = clock::now();
+    const double merge_end = omp_get_wtime();
     const std::size_t unique_word_count = local_frequencies.front().size();
 
-    const auto finalize_start = clock::now();
+    const double finalize_start = omp_get_wtime();
     std::optional<frequency_map> frequencies;
     if (config.finalize_enabled) {
         frequencies = materialize_frequency_map(std::move(local_frequencies.front()));
     }
-    const auto finalize_end = clock::now();
+    const double finalize_end = omp_get_wtime();
 
-    const auto write_start = clock::now();
+    const double write_start = omp_get_wtime();
     if (config.output_enabled) {
         if (config.output_path.has_value()) {
             write_frequency_map(*config.output_path, *frequencies);
@@ -133,9 +133,9 @@ run_result run_openmp(const run_config& config) {
             write_frequency_map(std::cout, *frequencies);
         }
     }
-    const auto write_end = clock::now();
+    const double write_end = omp_get_wtime();
 
-    const auto total_end = clock::now();
+    const double total_end = omp_get_wtime();
 
     run_result result;
     result.frequencies = std::move(frequencies);
@@ -146,13 +146,13 @@ run_result run_openmp(const run_config& config) {
     if (config.benchmark_enabled) {
         benchmark_data benchmark;
         benchmark.worker_count = worker_count;
-        benchmark.total_duration = duration(total_start, total_end);
-        benchmark.phases.push_back({"read", duration(read_start, read_end)});
-        benchmark.phases.push_back({"partition", duration(partition_start, partition_end)});
-        benchmark.phases.push_back({"count", duration(count_start, count_end)});
-        benchmark.phases.push_back({"merge", duration(merge_start, merge_end)});
-        benchmark.phases.push_back({"finalize", duration(finalize_start, finalize_end)});
-        benchmark.phases.push_back({"write", duration(write_start, write_end)});
+        benchmark.total_duration = total_end - total_start;
+        benchmark.phases.push_back({"read", read_end - read_start});
+        benchmark.phases.push_back({"partition", partition_end - partition_start});
+        benchmark.phases.push_back({"count", count_end - count_start});
+        benchmark.phases.push_back({"merge", merge_end - merge_start});
+        benchmark.phases.push_back({"finalize", finalize_end - finalize_start});
+        benchmark.phases.push_back({"write", write_end - write_start});
         result.benchmark = std::move(benchmark);
     }
 

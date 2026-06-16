@@ -2,7 +2,9 @@
 #include <mpi.h>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <limits>
@@ -188,6 +190,24 @@ void pack_entry(std::vector<std::byte>& bytes, std::string_view word, std::size_
     return std::accumulate(counts.begin(), counts.end(), std::size_t{0});
 }
 
+[[nodiscard]] range scatter_file_range(std::size_t file_size, int rank, int process_count) {
+    std::vector<std::uint64_t> range_offsets;
+    if (rank == 0) {
+        const auto ranges = build_even_ranges(file_size, process_count);
+        range_offsets.reserve(ranges.size() * 2);
+        for (const range local_range : ranges) {
+            range_offsets.push_back(local_range.begin);
+            range_offsets.push_back(local_range.end);
+        }
+    }
+
+    std::array<std::uint64_t, 2> local_offsets{};
+    MPI_Scatter(rank == 0 ? range_offsets.data() : nullptr, 2, MPI_UINT64_T, local_offsets.data(),
+                2, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+
+    return {static_cast<std::size_t>(local_offsets[0]), static_cast<std::size_t>(local_offsets[1])};
+}
+
 [[nodiscard]] std::span<const std::byte> packet(std::span<const std::byte> bytes,
                                                 std::span<const int> counts,
                                                 std::span<const int> offsets, int index) {
@@ -220,13 +240,13 @@ void pack_entry(std::vector<std::byte>& bytes, std::string_view word, std::size_
 
         MPI_Offset file_size = 0;
         MPI_File_get_size(file, &file_size);
+        const std::size_t file_size_bytes = static_cast<std::size_t>(file_size);
 
         const double partition_start = MPI_Wtime();
-        const auto ranges = build_even_ranges(file_size, process_count);
-        const range local_range = ranges[rank];
+        const range local_range = scatter_file_range(file_size_bytes, rank, process_count);
         const double partition_end = MPI_Wtime();
 
-        const chunk local_chunk = read_file_chunk(file, local_range, file_size);
+        const chunk local_chunk = read_file_chunk(file, local_range, file_size_bytes);
 
         MPI_File_close(&file);
         const double read_end = MPI_Wtime();
@@ -331,7 +351,7 @@ void pack_entry(std::vector<std::byte>& bytes, std::string_view word, std::size_
         const double total_end = MPI_Wtime();
 
         run_result result;
-        result.text_size = file_size;
+        result.text_size = file_size_bytes;
 
         if (rank == 0) {
             result.frequencies = std::move(frequencies);
